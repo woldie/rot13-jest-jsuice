@@ -1,0 +1,77 @@
+{
+  "root": true,
+  "extends": [
+    "airbnb/base",
+    "prettier"
+  ],
+  "parserOptions": {
+    "sourceType": "module"
+  },
+  "plugins": ["import", "prettier"],
+  "env": {
+    "browser": true,
+    "node": true
+  },
+  "settings": {
+    "import/extensions": [".js"],
+    "import/resolver": {
+      "node": {
+        "extensions": [".js"]
+      }
+    }
+  },
+  "rules": {
+    "class-methods-use-this": "off",
+    "no-shadow": "off",
+    "no-undef": "off",
+    "no-unused-expressions": "off",
+    "no-use-before-define": "off",
+    "no-param-reassign": [
+      "error",
+      {
+        "props": false
+      }
+    ],
+    "no-restricted-syntax": [
+      "error",
+      "ForInStatement",
+      "LabeledStatement",
+      "WithStatement"
+    ],
+    "import/first": "off",
+    "import/no-extraneous-dependencies": [
+      "warn",
+      {
+        "devDependencies": [
+          "**/*.test.js",
+          "**/testUtilities/**",
+          "**/*.integration.js",
+          "**/setup.js",
+          "**/globalSetup.js",
+          "**/globalTeardown.js"
+        ]
+      }
+    ],
+    "import/no-mutable-exports": "off",
+    "import/no-unresolved": "error",
+    "import/prefer-default-export": "off",
+    "import/extensions": [
+      "error",
+      "ignorePackages",
+      {
+        "js": "never"
+      }
+    ],
+    "comma-dangle": 0,
+    "max-len": [
+      "error",
+      {
+        "code": 120,
+        "ignoreComments": true,
+        "ignoreUrls": true,
+        "ignoreStrings": true
+      }
+    ],
+    "lines-between-class-members": "off"
+  }
+}
