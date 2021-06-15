@@ -3,6 +3,7 @@ const Scope = require("./Scope");
 const InjectableType = require("./InjectableType");
 const Injectable = require("./Injectable");
 const injector = require('./injector');
+const injectableMetadata = require('./injectableMetadata');
 
 // const log = require('../logger')("commons/injector.test");
 
@@ -13,6 +14,7 @@ describe("injector", () => {
     injector.clearScope(Scope.SINGLETON);
     injector.clearScope(Scope.APPLICATION);
     injector.moduleGroups = [];
+    injectableMetadata.resetAll();
   });
 
   it("[addModuleGroup] will register a moduleGroup", () => {
@@ -50,14 +52,15 @@ describe("injector", () => {
     expect(newPrototypeScopeInstance !== anotherPrototypeScopeInstance).toBe(true); // different instances
   });
 
-  it("[annotateConstructor] will add non-enumerable, non-writeable $meta to the constructor", () => {
+  it("[annotateConstructor] will add metadata for the constructor", () => {
     // GIVEN: a class constructor in a module group
     const moduleGroup = injector.addModuleGroup("myGroup");
 
-    function MyConstructor () {
-      this.a = 123;
+    class MyConstructor {
+      constructor() {
+        this.a = 123;
+      }
     }
-    MyConstructor.prototype.constructor = MyConstructor;
 
     injector.annotateConstructor(MyConstructor, injector.PROTOTYPE_SCOPE);
 
@@ -66,12 +69,17 @@ describe("injector", () => {
     // WHEN: all the properties on MyConstructor are enumerated
     const allProps = Object.keys(MyConstructor);
 
-    // THEN: nothing is enumerable
+    // THEN: nothing is enumerable because nothing was added to the constructor
     expect(allProps.length).toEqual(0); // , "All props length == 0");
 
-    // AND: yet $meta is there
-    expect(MyConstructor.$meta).toBeTruthy(); //  "$meta exists");
-    expect(Object.prototype.hasOwnProperty.call(MyConstructor, "$meta")).toBe(true);
+    // AND: and metadata was added to the constructor
+    expect(injectableMetadata.hasMetadataAssigned(MyConstructor));
+    expect(injectableMetadata.findOrAddMetadataFor(MyConstructor)).toEqual({
+      scope: Scope.PROTOTYPE,
+      eager: false,
+      injectedParams: [],
+      numberOfUserSuppliedArgs: 0,
+    });
   });
 
   it("[PROTOTYPE, CONSTRUCTOR_FUNCTION] will instantiate with an injection", () => {
@@ -155,10 +163,13 @@ describe("injector", () => {
     injector.annotateConstructor(MyConstructor, "other");
 
     // THEN ctor has expected metadata annotations
-    expect(MyConstructor.$meta).not.toBeNull(); // , "$meta was added to the constructor");
-    expect(MyConstructor.$meta.scope).toEqual(Scope.PROTOTYPE); // , , "default prototype scope set");
-    expect(MyConstructor.$meta.eager).toBeFalsy(); // , "default eager flag clear");
-    expect(MyConstructor.$meta.injectedParams).toEqual(["other"]); // , "injected params set");
+    expect(injectableMetadata.hasMetadataAssigned(MyConstructor)).toStrictEqual(true);
+    expect(injectableMetadata.findOrAddMetadataFor(MyConstructor)).toEqual({
+      scope: Scope.PROTOTYPE,
+      eager: false,
+      numberOfUserSuppliedArgs: 0,
+      injectedParams: ["other"]
+    });
   });
 
   it("[PROTOTYPE, CONSTRUCTOR_FUNCTION, annotateConstructor] can handle just ctor", () => {
@@ -171,10 +182,13 @@ describe("injector", () => {
     injector.annotateConstructor(MyConstructor);
 
     // THEN ctor has expected metadata annotations
-    expect(MyConstructor.$meta).not.toBeNull(); // , "$meta was added to the constructor");
-    expect(MyConstructor.$meta.scope).toEqual(Scope.PROTOTYPE); // , "default prototype scope set");
-    expect(MyConstructor.$meta.eager).toBeFalsy(); // , "default eager flag clear");
-    expect(MyConstructor.$meta.injectedParams).toEqual([]); // , "injected params empty");
+    expect(injectableMetadata.hasMetadataAssigned(MyConstructor)).toStrictEqual(true);
+    expect(injectableMetadata.findOrAddMetadataFor(MyConstructor)).toEqual({
+      scope: Scope.PROTOTYPE,
+      eager: false,
+      numberOfUserSuppliedArgs: 0,
+      injectedParams: []
+    });
   });
 
   it("[PROTOTYPE, CONSTRUCTOR_FUNCTION] will throw an error if there are any circular dependencies", () => {
@@ -376,7 +390,7 @@ describe("injector", () => {
     expect(constructorCalled).toBe(true); // , "The constructor was called for the singleton");
   });
 
-  it("[annotateConstructor] will populate the $meta object with flags and injectedParams", () => {
+  it("[annotateConstructor] will populate the metadata with flags and injectedParams", () => {
     function MyConstructor (gazinta, another) {
       this.gazinta = gazinta;
       this.another = another;
@@ -385,10 +399,13 @@ describe("injector", () => {
 
     injector.annotateConstructor(MyConstructor, injector.SINGLETON_SCOPE | injector.EAGER_FLAG, "gazinta", "another");
 
-    expect(MyConstructor.$meta).not.toBeNull(); // , "$meta was added to the constructor");
-    expect(MyConstructor.$meta.scope).toEqual(Scope.SINGLETON); // , "singleton scope set");
-    expect(MyConstructor.$meta.eager).toBe(true); // , "eager flag set");
-    expect(MyConstructor.$meta.injectedParams).toEqual(["gazinta", "another"]); // , "injected params set");
+    expect(injectableMetadata.hasMetadataAssigned(MyConstructor)).toStrictEqual(true);
+    expect(injectableMetadata.findOrAddMetadataFor(MyConstructor)).toEqual({
+      scope: Scope.SINGLETON,
+      eager: true,
+      numberOfUserSuppliedArgs: 0,
+      injectedParams: ["gazinta", "another"]
+    });
   });
 
   it("[annotateConstructor] will be a prototype scope if no additional parameters are supplied", () => {
@@ -398,9 +415,14 @@ describe("injector", () => {
 
     injector.annotateConstructor(MyConstructor); // no extra parameters applied
 
-    expect(MyConstructor.$meta.scope).toEqual(Scope.PROTOTYPE); // , "prototype scope set");
-    expect(MyConstructor.$meta.eager).toBe(false); // , "eager flag unset");
-    expect(MyConstructor.$meta.injectedParams).toEqual([]); // , "empty injected params set");
+    // ctor has expected metadata annotations
+    expect(injectableMetadata.hasMetadataAssigned(MyConstructor)).toStrictEqual(true);
+    expect(injectableMetadata.findOrAddMetadataFor(MyConstructor)).toEqual({
+      scope: Scope.PROTOTYPE,
+      eager: false,
+      numberOfUserSuppliedArgs: 0,
+      injectedParams: []
+    });
   });
 
   where((type, nonStringValue) => {
@@ -476,20 +498,27 @@ describe("injector", () => {
     });
   });
 
-  it("[annotateConstructor] will allow eager to be set to true only on SINGLETON or APPLICATION", () => {
-    [
-      injector.SINGLETON_SCOPE,
-      injector.APPLICATION_SCOPE
-    ].forEach((flags) => {
-      function MyConstructor () {
-      }
-      MyConstructor.prototype.constructor = MyConstructor;
+  test.each`
+    scopeFlag                     | scope
+    ${injector.SINGLETON_SCOPE}   | ${Scope.SINGLETON}
+    ${injector.APPLICATION_SCOPE} | ${Scope.APPLICATION}
+  `("[annotateConstructor] will allow eager to be set to true only on SINGLETON or APPLICATION", ({ scopeFlag, scope }) => {
+    function MyConstructor () {
+    }
 
-      expect(() => {
-        injector.annotateConstructor(MyConstructor, flags | injector.EAGER_FLAG);
-      }).not.toThrow(); // , "The annotation with eager flag set should succeed");
+    MyConstructor.prototype.constructor = MyConstructor;
 
-      expect(MyConstructor.$meta.eager).toBe(true); // (, "eager flag is set");
+    expect(() => {
+      injector.annotateConstructor(MyConstructor, scopeFlag | injector.EAGER_FLAG);
+    }).not.toThrow(); // , "The annotation with eager flag set should succeed");
+
+    // THEN ctor has expected metadata annotations
+    expect(injectableMetadata.hasMetadataAssigned(MyConstructor)).toStrictEqual(true);
+    expect(injectableMetadata.findOrAddMetadataFor(MyConstructor)).toEqual({
+      scope,
+      eager: true,
+      numberOfUserSuppliedArgs: 0,
+      injectedParams: []
     });
   });
 
@@ -550,19 +579,20 @@ describe("injector", () => {
       };
 
       // WHEN I call createProvider with the factory function, number of additional parameters, and dep names
-      const moduleFactory = injector.createProvider(factoryFunction, 0, "display", "printer");
+      const provider = injector.createProvider(factoryFunction, 0, "display", "printer");
 
     // THEN new Provider was built as expected
-    expect(moduleFactory.dependencies).toEqual(["display", "printer"]);
-    expect(moduleFactory.numberOfUserSuppliedArgs).toEqual(0);
+    expect(provider.dependencies).toEqual(["display", "printer"]);
+    expect(provider.numberOfUserSuppliedArgs).toEqual(0);
 
-    // AND the Provider's class has the factoryFunction attached to its prototype as '__createInstance'
-    const createdObject = moduleFactory.__createInstance("myDisplay", "myPrinter");
+    // AND the Provider's class has the factoryFunction available via injectableMetadata
+    const providerFunction = injectableMetadata.getProviderFunction(provider);
+    const createdObject = providerFunction("myDisplay", "myPrinter");
     expect(createdObject.display).toEqual("myDisplay");
     expect(createdObject.printer).toEqual("myPrinter");
   });
 
-  it("[PROTOTYPE, MODULE_FACTORY] will have dependencies injected", () => {
+  it("[PROTOTYPE, PROVIDER] will have dependencies injected", () => {
     const moduleGroup = injector.addModuleGroup("myGroup");
 
       const anObject = {
@@ -597,7 +627,7 @@ describe("injector", () => {
     expect(instance !== anotherInstance).toBe(true); // (, "factory function was called twice due to prototype scope");
   });
 
-  it("[PROTOTYPE, MODULE_FACTORY] will have dependencies injected with assisted injection from end-user supplied params", () => {
+  it("[PROTOTYPE, PROVIDER] will have dependencies injected with assisted injection from end-user supplied params", () => {
     const moduleGroup = injector.addModuleGroup("myGroup");
 
       const anObject = {
@@ -638,7 +668,7 @@ describe("injector", () => {
       }).toThrow(/Assisted injection parameters were passed but are not allowed/);
     });
   }, [
-    // WHERE: only PROTOTYPE, MODULE_FACTORY or INJECTED_CONSTRUCTOR supports assisted injection (at this time)
+    // WHERE: only PROTOTYPE, PROVIDER or INJECTED_CONSTRUCTOR supports assisted injection (at this time)
     {
       scope: Scope.PROTOTYPE,
       type: InjectableType.OBJECT_INSTANCE
@@ -653,7 +683,7 @@ describe("injector", () => {
     },
     {
       scope: Scope.APPLICATION,
-      type: InjectableType.MODULE_FACTORY
+      type: InjectableType.PROVIDER
     },
     {
       scope: Scope.SINGLETON,
@@ -665,7 +695,7 @@ describe("injector", () => {
     },
     {
       scope: Scope.SINGLETON,
-      type: InjectableType.MODULE_FACTORY
+      type: InjectableType.PROVIDER
     }
   ]);
 

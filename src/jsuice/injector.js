@@ -5,11 +5,12 @@ const isString = require("lodash.isstring");
 const isFunction = require("lodash.isfunction");
 const isNumber = require("lodash.isnumber");
 const map = require("lodash.map");
-const trim = require("lodash.trim");
 const Scope = require("./Scope");
 const InjectableType = require("./InjectableType");
 const ModuleGroup = require("./ModuleGroup");
 const Provider = require("./Provider");
+const injectableMetadata = require("./injectableMetadata");
+const InjectorUtils = require('./InjectorUtils');
 
 const log = require('../logger')("commons/injector");
 
@@ -148,10 +149,6 @@ class Injector {
     return this;
   }
 
-  static getFunctionSignature(ftn) {
-    return trim((`${ftn}`).split("{")[0]);
-  }
-
   /**
    * Annotate a constructor function with metadata that instructs the injector what the scope, injectedParams and
    * other configuration flags should be when it instantiates using that constructor.  With the annotations, the
@@ -203,15 +200,15 @@ class Injector {
       if (!isString(metaObj.injectedParams[i])) {
         throw new Error(`annotateConstructor: injectedParam[${
           i}] was not a string. Only strings may be passed for injectedParams. ctor: ${
-          Injector.getFunctionSignature(ctor)}`);
+          InjectorUtils.getFunctionSignature(ctor)}`);
       }
     }
 
     if ((metaObj.injectedParams.length + metaObj.numberOfUserSuppliedArgs) !== ctor.length) {
-      throw new Error(`annotateConstructor: parameter counts do not match. Expected ctor to have ${ 
+      throw new Error(`annotateConstructor: parameter counts do not match. Expected ctor to have ${
           metaObj.injectedParams.length} injectables + ${
           metaObj.numberOfUserSuppliedArgs} extra parameters, but ctor only has ${
-          ctor.length} params. ctor: ${Injector.getFunctionSignature(ctor)}`);
+          ctor.length} params. ctor: ${InjectorUtils.getFunctionSignature(ctor)}`);
     }
 
     let flags = isFlagsSupplied ? argList[1] : Injector.prototype.PROTOTYPE_SCOPE;
@@ -269,11 +266,8 @@ class Injector {
       throw new Error("Unknown flags");
     }
 
-    Object.defineProperty(ctor, "$meta", {
-      value: metaObj,
-      enumerable: false,
-      writable: true
-    });
+    // copy metaObj properties into the metadata object for the ctor
+    Object.assign(injectableMetadata.findOrAddMetadataFor(ctor), metaObj);
 
     return ctor;
   }
@@ -308,19 +302,16 @@ class Injector {
       }
     }
 
-    Object.defineProperty(ProviderImpl.prototype, "constructor", {
-      value: ProviderImpl,
-      enumerable: false,
-      writable: true
-    });
+    const provider = new ProviderImpl();
 
-    Object.defineProperty(ProviderImpl.prototype, "__createInstance", {
-      value: providerFunction,
-      enumerable: false,
-      writable: true
-    });
+    if (injectableMetadata.isProviderFunctionAlreadyRegistered(providerFunction)) {
+      throw new Error(`Factory function already registered as a Provider: ${
+        InjectorUtils.getFunctionSignature(providerFunction)}`)
+    }
 
-    return new ProviderImpl();
+    injectableMetadata.setProvider(provider, providerFunction);
+
+    return provider;
   }
 
   /**
@@ -414,7 +405,7 @@ class Injector {
   static assertAssistedInjectionParamsIsEmpty(scope, type, assistedInjectionParams) {
     if (assistedInjectionParams.length) {
       if (!(scope === Scope.PROTOTYPE &&
-          (type === InjectableType.MODULE_FACTORY || type === InjectableType.INJECTED_CONSTRUCTOR))) {
+          (type === InjectableType.PROVIDER || type === InjectableType.INJECTED_CONSTRUCTOR))) {
         throw new Error("Assisted injection parameters were passed but are not allowed for this injectable");
       }
     }
@@ -445,7 +436,7 @@ class Injector {
         case Scope.PROTOTYPE:
           switch (injectable.type) {
             case InjectableType.INJECTED_CONSTRUCTOR:
-            case InjectableType.MODULE_FACTORY:
+            case InjectableType.PROVIDER:
               return self.newInjectableInstance(injectable, nameHistory, scopeHistory, assistedInjectionParams);
 
             case InjectableType.OBJECT_INSTANCE:
@@ -471,7 +462,7 @@ class Injector {
               instance = injectable.subject;
               break;
 
-            case InjectableType.MODULE_FACTORY:
+            case InjectableType.PROVIDER:
               throw new Error("Not implemented");
 
             default:

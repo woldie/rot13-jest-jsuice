@@ -4,7 +4,7 @@
 const InjectableType = {
   INJECTED_CONSTRUCTOR: "c",
   OBJECT_INSTANCE: "o",
-  MODULE_FACTORY: "f"
+  PROVIDER: "f"
 };
 
 module.exports = InjectableType;

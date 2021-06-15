@@ -1,8 +1,9 @@
-/* eslint-disable no-eval,new-cap,dot-notation,no-unused-vars */
+/* eslint-disable no-eval,new-cap,dot-notation,no-unused-vars,no-underscore-dangle */
 const union = require("lodash.union");
 const InjectableType = require("./InjectableType");
 const Scope = require("./Scope");
-const ModuleFactory = require("./Provider");
+const Provider = require("./Provider");
+const injectableMetadata = require("./injectableMetadata");
 
 const log = require('../logger')("commons/Injectable");
 
@@ -28,22 +29,22 @@ class Injectable {
         scope = Scope.PROTOTYPE;
         type = InjectableType.INJECTED_CONSTRUCTOR;
 
-        if (!Object.prototype.hasOwnProperty.call(subject, "$meta")) {
+        if (!injectableMetadata.hasMetadataAssigned(subject)) {
           if (subject.length) {
-            throw new Error(`Injectable '${injectableName}' constructor function requires a $meta ` +
+            throw new Error(`Injectable '${injectableName}' constructor function requires metadata annotations ` +
                 `property to describe its constructor args`);
           }
         } else {
-          metaObj = subject["$meta"];
+          metaObj = injectableMetadata.findOrAddMetadataFor(subject);
           describedParameters = metaObj.injectedParams || [];
 
           if (Object.prototype.hasOwnProperty.call(metaObj, "type")) {
-            throw new Error(`Injectable may not specify its own type in $meta: ${injectableName}`);
+            throw new Error(`Injectable may not specify its own type in its metadata: ${injectableName}`);
           }
 
           if ((describedParameters.length + metaObj.numberOfUserSuppliedArgs) !== subject.length) {
             throw new Error(`Injectable '${injectableName}' constructor function argument count ` +
-                `(${subject.length}) differs from the count of $meta.injectedParams ` +
+                `(${subject.length}) differs from the expected count of injectedParams in type metadata ` +
                 `(${describedParameters.length}) plus number of expected user-supplied arguments ` +
                 `(${metaObj.numberOfUserSuppliedArgs})`);
           }
@@ -63,8 +64,8 @@ class Injectable {
           Injectable.failWithTypeofError(injectableName, "String");
         }
 
-        if (subject instanceof ModuleFactory) {
-          type = InjectableType.MODULE_FACTORY;
+        if (subject instanceof Provider) {
+          type = InjectableType.PROVIDER;
           scope = Scope.PROTOTYPE;
           Array.prototype.push.apply(self.injectedParams, subject.dependencies);
         } else if (subject instanceof String) {
@@ -85,7 +86,7 @@ class Injectable {
     self.type = type;
 
     /**
-     * @type {Object|Function}
+     * @type {Object|function}
      */
     self.subject = subject;
 
@@ -96,13 +97,13 @@ class Injectable {
 
     /**
      * @package
-     * @type {(null|function(Function, Array.<*>): Object)}
+     * @type {?function(Function, Array.<*>): Object}
      */
     self.newInstanceFunction = null;
 
     /**
      * @package
-     * @type {String}
+     * @type {string}
      */
     self.name = injectableName;
 
@@ -151,11 +152,11 @@ class Injectable {
 
   /**
    * Always returns a new instance, regardless of scope value.  should only be called by Injector and not
-   * directly.  Behavior undefined for types other than INJECTED_CONSTRUCTOR or MODULE_FACTORY.
+   * directly.  Behavior undefined for types other than INJECTED_CONSTRUCTOR or PROVIDER.
    *
    * @package
    * @param {Array} params
-   * @param {Array.<*>} assistedInjectionParams additional user-supplied parameters used by MODULE_FACTORY-type
+   * @param {Array.<*>} assistedInjectionParams additional user-supplied parameters used by PROVIDER-type
    * and INJECTED_CONSTRUCTOR-type injectables only, otherwise ignored.
    * @returns {Object}
    */
@@ -163,19 +164,28 @@ class Injectable {
     const self = this;
     const combinedParams = union(params, assistedInjectionParams);
 
-    if (self.type === InjectableType.MODULE_FACTORY) {
-      if (assistedInjectionParams.length !== self.subject.numberOfUserSuppliedArgs) {
+    if (self.type === InjectableType.PROVIDER) {
+      const provider = /** @type {Provider} */ self.subject;
+      if (assistedInjectionParams.length !== provider.numberOfUserSuppliedArgs) {
         throw new Error(`Invalid number of user-supplied parameters for assisted injection, expected ` +
-            `${self.subject.numberOfUserSuppliedArgs}, got ${assistedInjectionParams.length}`);
+            `${provider.numberOfUserSuppliedArgs}, got ${assistedInjectionParams.length}`);
       }
 
-      // module factories don't need to synthesize a newInstanceFunction and cache that because they have
-      // a factory function built in that we can call directly using apply
-      return self.subject["__createInstance"](...combinedParams);
+      // Providers don't need to synthesize a newInstanceFunction and cache that because they have
+      // a factory function associated with them that we can call directly using apply
+
+      const providerFtn = injectableMetadata.getProviderFunction(provider)
+      if (!providerFtn) {
+        throw new Error(`BUG: no provider function was found for provider`);
+      }
+
+      return providerFtn.apply(provider, combinedParams);
     }
 
     if (self.type === InjectableType.INJECTED_CONSTRUCTOR) {
-      const metaObj = self.subject["$meta"] || {numberOfUserSuppliedArgs: 0};
+      const metaObj = injectableMetadata.hasMetadataAssigned(self.subject) ?
+        injectableMetadata.findOrAddMetadataFor(self.subject) :
+        { numberOfUserSuppliedArgs: 0};
 
       if (assistedInjectionParams.length !== metaObj.numberOfUserSuppliedArgs) {
         throw new Error(`Invalid number of user-supplied parameters for assisted injection, expected ` +

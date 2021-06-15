@@ -1,4 +1,4 @@
-/* eslint-disable no-new,no-new-wrappers */
+/* eslint-disable no-new,no-new-wrappers,max-classes-per-file */
 // noinspection JSPrimitiveTypeWrapperUsage
 
 const forEach = require("lodash.foreach");
@@ -6,14 +6,16 @@ const sinon = require("sinon");
 const Injectable = require("./Injectable");
 const InjectableType = require("./InjectableType");
 const Scope = require("./Scope");
-const ModuleFactory = require("./Provider");
+const Provider = require("./Provider");
+const injectableMetadata = require("./injectableMetadata");
 
 describe("injectable", () => {
   afterEach(() => {
     sinon.restore();
+    injectableMetadata.resetAll();
   });
 
-  it("will fail if the constructor function with args does not have a $meta property", () => {
+  it("will fail if the constructor function with args does not have associated metadata", () => {
     /**
      * @param {MyTestClass} myTestClass
      * @constructor
@@ -36,10 +38,9 @@ describe("injectable", () => {
       this.injectMe = injectMe;
     }
 
-    MyWrongMetaClass.$meta = {
-      injectedParams: ["OneThing", "OtherThing"],
-      numberOfUserSuppliedArgs: 0
-    };
+    const metadata = injectableMetadata.findOrAddMetadataFor(MyWrongMetaClass);
+    metadata.injectedParams = ["OneThing", "OtherThing"];
+    metadata.numberOfUserSuppliedArgs = 0;
 
     expect(() => {
       new Injectable(MyWrongMetaClass, "MyWrongMetaClass");
@@ -53,16 +54,15 @@ describe("injectable", () => {
       this.h = h;
     }
 
-    MyRightMetaClass.$meta = {
-      injectedParams: ["OneThing"],
-      numberOfUserSuppliedArgs: 2
-    };
+    const metadata = injectableMetadata.findOrAddMetadataFor(MyRightMetaClass);
+    metadata.injectedParams = ["OneThing"];
+    metadata.numberOfUserSuppliedArgs = 2;
 
     const injectable = new Injectable(MyRightMetaClass, "MyRightMetaClass");
     expect(injectable).not.toBeNull();
   });
 
-  it("will not fail if the constructor function without args does not have a $meta property", () => {
+  it("will not fail if the constructor function without args does not have metadata assigned", () => {
     function MyMetaNotNeededOnNoArgsClass() {
       this.e = "5";
       this.f = "6";
@@ -86,19 +86,22 @@ describe("injectable", () => {
     }).toThrow(); // little caveat because javascript is psycho: typeof new String(...) is 'object'
   });
 
-  it("[constructor] will create a new MODULE_FACTORY, PROTOTYPE if subject is instanceof Provider", () => {
-    // GIVEN a module factory
-    const moduleFactory = new ModuleFactory(["dependency1", "dependency2"], 3);
+  class MyProvider extends Provider {
+  }
 
-      // WHEN I call constructor
-      const injectable = new Injectable(moduleFactory, "myModuleFactory");
+  it("[constructor] will create a new PROVIDER, PROTOTYPE if subject is instanceof Provider", () => {
+    // GIVEN a Provider
+    const provider = new MyProvider(["dependency1", "dependency2"], 3);
+
+    // WHEN I call constructor
+    const injectable = new Injectable(provider, "myProvider");
 
     // THEN injectable is populated as expected
-    expect(injectable.name).toEqual("myModuleFactory");
-    expect(injectable.type).toEqual(InjectableType.MODULE_FACTORY);
+    expect(injectable.name).toEqual("myProvider");
+    expect(injectable.type).toEqual(InjectableType.PROVIDER);
     expect(injectable.scope).toEqual(Scope.PROTOTYPE);
-    expect(moduleFactory.dependencies).toEqual(injectable.injectedParams);
-    expect(moduleFactory === injectable.subject).toBe(true);
+    expect(provider.dependencies).toEqual(injectable.injectedParams);
+    expect(provider === injectable.subject).toBe(true);
   });
 
   it("will create a new instance of an INJECTED_CONSTRUCTOR with parameters", () => {
@@ -107,11 +110,10 @@ describe("injectable", () => {
       this.y = param2;
     }
 
-    MyTestClass.$meta = {
-      injectedParams: ["param1", "param2"],
-      numberOfUserSuppliedArgs: 0,
-      scope: Scope.SINGLETON
-    };
+    const metadata = injectableMetadata.findOrAddMetadataFor(MyTestClass);
+    metadata.injectedParams = ["param1", "param2"];
+    metadata.numberOfUserSuppliedArgs = 0;
+    metadata.scope = Scope.SINGLETON;
 
     let dynamicObjectFactorySpy = sinon.spy(Injectable.prototype, "createDynamicObjectFactory");
       const injectable = new Injectable(MyTestClass, "MyTestClass");
@@ -147,81 +149,66 @@ describe("injectable", () => {
       function MyTestClass() {
       }
 
-      MyTestClass.$meta = {
-        scope: aScope,
-        numberOfUserSuppliedArgs: 0
-      };
+      const metadata = injectableMetadata.findOrAddMetadataFor(MyTestClass);
+      metadata.scope = aScope;
+      metadata.numberOfUserSuppliedArgs = 0;
 
       const injectable = new Injectable(MyTestClass, "mytestclass");
 
-      expect(injectable.eagerInstantiation).toBe(false);
+      expect(injectable.eagerInstantiation).toStrictEqual(false);
     });
   });
 
-  it("[constructor] will set eagerInstantiation to true when $meta has eager==true for INJECTED_CONSTRUCTOR, PROTOTYPE", () => {
-    function MyTestClass() {
+  it("[constructor] will set eagerInstantiation to true when metadata has eager==true for INJECTED_CONSTRUCTOR, PROTOTYPE", () => {
+    class MyTestClass {
     }
 
-    MyTestClass.$meta = {
-      scope: Scope.SINGLETON,
-      numberOfUserSuppliedArgs: 0,
-      eager: true
-    };
+    const metadata = injectableMetadata.findOrAddMetadataFor(MyTestClass);
+    metadata.scope = Scope.SINGLETON;
+    metadata.numberOfUserSuppliedArgs = 0;
+    metadata.eager = true;
 
     const injectable = new Injectable(MyTestClass, "mytestclass");
 
-    expect(injectable.eagerInstantiation).toBe(true);
+    expect(injectable.eagerInstantiation).toStrictEqual(true);
   });
 
-  class MyModuleFactory extends ModuleFactory {
-  }
+  it("[newInstance] will create a new instance by way of the factory function for PROVIDER", () => {
+    const myProvider = new MyProvider([], 0);
+    injectableMetadata.setProvider(myProvider, () => ({ aField: "hi there" }));
 
-  it("[newInstance] will create a new instance by way of the factory function for MODULE_FACTORY", () => {
-    Object.defineProperty(MyModuleFactory.prototype, "__createInstance", {
-      value () {
-        return { aField: "hi there" };
-      },
-      enumerable: false,
-      writable: true
-    });
+    const factoryInjectable = new Injectable(myProvider, "myProvider");
 
-    const factoryInjectable = new Injectable(new MyModuleFactory([], 0), "myModuleFactory");
-
-      const instance = factoryInjectable.newInstance([], []);
+    const instance = factoryInjectable.newInstance([], []);
 
     expect(instance.aField).toEqual("hi there");
   });
 
-  it("[newInstance] will create a new MODULE_FACTORY instance that requires additionalInjectionParams", () => {
-    Object.defineProperty(MyModuleFactory.prototype, "__createInstance", {
-      value (injected1, injected2, assisted1, assisted2) {
-        return { aField: `hi there ${  injected1  } ${  injected2  } ${  assisted1  } ${  assisted2}` };
-      },
-      enumerable: false,
-      writable: true
-    });
+  it("[newInstance] will create a new PROVIDER instance that requires additionalInjectionParams", () => {
+    const myProvider = new MyProvider([], 2);
+    injectableMetadata.setProvider(myProvider, (injected1, injected2, assisted1, assisted2) => ({
+      aField: `hi there ${injected1} ${injected2} ${assisted1} ${assisted2}`
+    }));
 
-    const factoryInjectable = new Injectable(
-        new MyModuleFactory([], 2),
-        "myModuleFactory");
+    const factoryInjectable = new Injectable(myProvider, "myProvider");
 
-      const instance = factoryInjectable.newInstance(["injected1", "injected2"], ["assisted1", "assisted2"]);
+    const instance = factoryInjectable.newInstance(
+      ["injected1", "injected2"],
+      ["assisted1", "assisted2"]
+    );
 
     expect(instance.aField).toEqual("hi there injected1 injected2 assisted1 assisted2");
   });
 
-  it("[newInstance] will throw an error while creating a new MODULE_FACTORY with wrong number of addl parameters passed", () => {
-    Object.defineProperty(MyModuleFactory.prototype, "__createInstance", {
-      value (injected1, injected2, assisted1) {
-        return { aField: `hi there ${  injected1  } ${  injected2  } ${  assisted1}` };
-      },
-      enumerable: false,
-      writable: true
-    });
+  function threeParamFactoryFunction(injected1, injected2, assisted1) {
+    return { aField: `hi there ${injected1} ${injected2} ${assisted1}` };
+  }
 
-    const factoryInjectable = new Injectable(
-      new MyModuleFactory([], 1),
-      "myModuleFactory");
+  it("[newInstance] will throw an error while creating a new PROVIDER with wrong number of addl parameters passed", () => {
+    const myProvider = new MyProvider([], 1);
+    injectableMetadata.setProvider(myProvider, threeParamFactoryFunction);
+
+    const factoryInjectable = new Injectable(myProvider, "myProvider");
 
     expect(() => {
       factoryInjectable.newInstance(["injected1", "injected2"], ["assisted1", "invalid_assisted2"]);

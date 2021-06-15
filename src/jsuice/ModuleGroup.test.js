@@ -1,37 +1,45 @@
 const ModuleGroup = require("./ModuleGroup");
 const Scope = require("./Scope");
 const InjectableType = require("./InjectableType");
+const injectableMetadata = require('./injectableMetadata');
 
-function MyTestClass() {
-  this.a = "1";
-  this.b = "2";
+class MyTestClass {
+  constructor() {
+    this.a = "1";
+    this.b = "2";
+  }
 }
 
-function MyGoodMetaClass(inject1, inject2) {
-  this.inject1 = inject1;
-  this.inject2 = inject2;
+class MyGoodMetaClass {
+  constructor(inject1, inject2) {
+    this.inject1 = inject1;
+    this.inject2 = inject2;
+  }
 }
 
-MyGoodMetaClass.$meta = {
-  injectedParams: ["InjectOne", "InjectTwo"],
-  numberOfUserSuppliedArgs: 0
-};
-
-function MyBusyMetaClass(inject1) {
-  this.inject1 = inject1;
+class MyBusyMetaClass {
+  constructor(inject1) {
+    this.inject1 = inject1;
+  }
 }
-
-MyBusyMetaClass.$meta = {
-  injectedParams: ["InjectOne"],
-  numberOfUserSuppliedArgs: 0,
-  scope: Scope.PROTOTYPE
-};
 
 describe("ModuleGroup", () => {
   let moduleGroup;
 
   beforeEach(() => {
     moduleGroup = new ModuleGroup("myInjector");
+    injectableMetadata.resetAll();
+
+    Object.assign(injectableMetadata.findOrAddMetadataFor(MyGoodMetaClass), {
+      injectedParams: ["InjectOne", "InjectTwo"],
+      numberOfUserSuppliedArgs: 0
+    });
+
+    Object.assign(injectableMetadata.findOrAddMetadataFor(MyBusyMetaClass), {
+      injectedParams: ["InjectOne"],
+      numberOfUserSuppliedArgs: 0,
+      scope: Scope.PROTOTYPE
+    });
   });
 
   it("will allow you to register a constructor function", () => {
@@ -70,7 +78,7 @@ describe("ModuleGroup", () => {
     expect(injectable.type).toEqual(InjectableType.INJECTED_CONSTRUCTOR); // , "register makes this type when subject is a function");
   });
 
-  it("will create an injectable with all $meta components parsed when I get a successful registration", () => {
+  it("will create an injectable with all metadata parsed when I get a successful registration", () => {
     moduleGroup.register("MyBusyMetaClass", MyBusyMetaClass);
     const injectable = moduleGroup.getInjectable("MyBusyMetaClass");
 

@@ -7,8 +7,8 @@
  */
 const Scope = {
   SINGLETON: "1",
-  PROTOTYPE: "2",
-  APPLICATION: "3"
+  APPLICATION: "2",
+  PROTOTYPE: "4"
 };
 
 module.exports = Scope;

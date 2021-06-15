@@ -28,19 +28,4 @@ class Provider {
   }
 }
 
-/**
- * Internal factory function called by the Injector.  Must be overridden by subclasses.
- *
- * @name Provider#__createInstance
- * @param {...*} allArgs injected args followed by user-supplied args
- * @abstract
- */
-Object.defineProperty(Provider.prototype, "__createInstance", {
-  value(allArgs) {
-    throw new Error("abstract base");
-  },
-  enumerable: false,
-  writable: true
-});
-
 module.exports = Provider;
