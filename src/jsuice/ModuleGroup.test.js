@@ -1,3 +1,5 @@
+/* eslint-disable max-classes-per-file */
+
 const ModuleGroup = require("./ModuleGroup");
 const Scope = require("./Scope");
 const InjectableType = require("./InjectableType");

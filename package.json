@@ -34,8 +34,7 @@
     "lodash.map": "^4.6.0",
     "lodash.trim": "^4.5.1",
     "lodash.union": "^4.6.0",
-    "lodash.uniq": "^4.5.0",
-    "logarama": "^3.2.0"
+    "lodash.uniq": "^4.5.0"
   },
   "devDependencies": {
     "@sinonjs/fake-timers": "^6.0.1",

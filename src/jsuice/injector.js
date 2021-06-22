@@ -12,8 +12,6 @@ const Provider = require("./Provider");
 const injectableMetadata = require("./injectableMetadata");
 const InjectorUtils = require('./InjectorUtils');
 
-const log = require('../logger')("commons/injector");
-
 /**
  * For internal use only.  injector.js exports a global singleton that should be invoked directly.
  * @package
@@ -85,12 +83,10 @@ class Injector {
     const moduleDeclarations = Array.from(arguments).slice(1);
 
     if (!moduleDeclarations || !moduleDeclarations.length) {
-      log.error("no moduleDeclarations found");
       throw new Error("no moduleDeclarations found");
     }
 
     if ((moduleDeclarations.length & 1)) {
-      log.error("moduleDeclarations length must be evenly divisible by 2");
       throw new Error("moduleDeclarations length must be evenly divisible by 2");
     }
 
@@ -102,7 +98,6 @@ class Injector {
     let moduleGroup = self.findModuleGroup(name);
 
     if (moduleGroup) {
-      log.error(`ModuleGroup ${name} already exists!`);
       throw new Error(`ModuleGroup ${name} already exists!`);
     }
 
@@ -112,7 +107,6 @@ class Injector {
     for (let i = 0, ii = moduleDeclarations.length; i < ii; i += 2) {
       moduleName = moduleDeclarations[i];
       if (!isString(moduleName)) {
-        log.error(`string expected at moduleDeclarations[${i}]`);
         throw new Error(`string expected at moduleDeclarations[${i}]`);
       }
 
@@ -121,13 +115,9 @@ class Injector {
 
         if (otherGroup.getInjectable(moduleName)) {
           if (otherGroup === moduleGroup) {
-            log.error(`Module ${moduleName} was registered more than once in ${
-              moduleGroup.name} module group`);
             throw new Error(`Module ${moduleName} was registered more than once in ${
               moduleGroup.name} module group`);
           } else {
-            log.error(`Module ${moduleName} in module group ${
-              moduleGroup.name} was already registered in another module group ${otherGroup.name}`);
             throw new Error(`Module ${moduleName} in module group ${
               moduleGroup.name} was already registered in another module group ${otherGroup.name}`);
           }
@@ -143,10 +133,10 @@ class Injector {
 
     // instantiate any eager singletons NOW by calling getInstance on the module names
     for (let i = 0, ii = eagerSingletons.length; i < ii; i += 1) {
-      this.getInstance(eagerSingletons[i]);
+      self.getInstance(eagerSingletons[i]);
     }
 
-    return this;
+    return self;
   }
 
   /**
@@ -187,16 +177,16 @@ class Injector {
     }
 
     const argList = Array.from(arguments);
-        const isFlagsSupplied = isNumber(argList[1]);
-        const isUserSuppliedArgsCountSpecified = isNumber(argList[2]);
-        const injectedParamsStartIndex = 1 + (isFlagsSupplied ? 1 : 0) + (isUserSuppliedArgsCountSpecified ? 1 : 0);
-        const metaObj = {
-          injectedParams: (argList.length > injectedParamsStartIndex) ? argList.slice(injectedParamsStartIndex) : [],
-          numberOfUserSuppliedArgs: (isUserSuppliedArgsCountSpecified ? argList[2] : 0),
-          eager: false
-        }; let i; let ii;
+    const isFlagsSupplied = isNumber(argList[1]);
+    const isUserSuppliedArgsCountSpecified = isNumber(argList[2]);
+    const injectedParamsStartIndex = 1 + (isFlagsSupplied ? 1 : 0) + (isUserSuppliedArgsCountSpecified ? 1 : 0);
+    const metaObj = {
+      injectedParams: (argList.length > injectedParamsStartIndex) ? argList.slice(injectedParamsStartIndex) : [],
+      numberOfUserSuppliedArgs: (isUserSuppliedArgsCountSpecified ? argList[2] : 0),
+      eager: false
+    };
 
-    for (i = 0, ii = metaObj.injectedParams.length; i < ii; i += 1) {
+    for (let i = 0, ii = metaObj.injectedParams.length; i < ii; i += 1) {
       if (!isString(metaObj.injectedParams[i])) {
         throw new Error(`annotateConstructor: injectedParam[${
           i}] was not a string. Only strings may be passed for injectedParams. ctor: ${
@@ -354,9 +344,9 @@ class Injector {
     }
 
     return map(moduleGroup.injectables, (injectable) => ({
-        moduleName: injectable.name,
-        instance: self.getInstanceForInjectable(injectable, self.nameStack, self.scopeStack, [])
-      }));
+      moduleName: injectable.name,
+      instance: self.getInstanceForInjectable(injectable, self.nameStack, self.scopeStack, [])
+    }));
   }
 
   /**
@@ -396,7 +386,7 @@ class Injector {
         : (`${"no module groups were found.  Are you calling a different Injector instance than the one you expected?" +
             "  Current injector.id = "}${  self.id}`);
 
-    throw new Error(`Did not find any injectable for: ${  name  }; ${  additionalInfo}`);
+    throw new Error(`Did not find any injectable for: ${name}; ${additionalInfo}`);
   }
 
   /**

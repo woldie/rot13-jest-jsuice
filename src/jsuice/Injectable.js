@@ -5,8 +5,6 @@ const Scope = require("./Scope");
 const Provider = require("./Provider");
 const injectableMetadata = require("./injectableMetadata");
 
-const log = require('../logger')("commons/Injectable");
-
 class Injectable {
 
   constructor(subject, injectableName) {

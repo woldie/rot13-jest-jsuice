@@ -5,8 +5,6 @@ const Injectable = require("./Injectable");
 const injector = require('./injector');
 const injectableMetadata = require('./injectableMetadata');
 
-// const log = require('../logger')("commons/injector.test");
-
 const { where } = require('../testUtilities/testTools');
 
 describe("injector", () => {
