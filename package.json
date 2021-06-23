@@ -9,12 +9,16 @@
   "scripts": {
     "audit:html": "yarn audit --level moderate --json | yarn-audit-html --output build/reports/yarn-audit-report.html",
     "build": "yarn lint && tsc",
+    "docs:jsuice": "jsdoc src/jsuice --configure ./.jsdoc.json --recurse --destination build/docs/jsuice",
+    "docs": "yarn docs:jsuice",
     "launch:app": "node -r ts-node/register -r tsconfig-paths/register --unhandled-rejections=strict ./src/App.ts",
     "launch:unit": "jest --passWithNoTests --silent --verbose $WATCH_PARAM --config $CONFIG_FILE",
     "launch:integration": "jest --runInBand --passWithNoTests --silent --verbose --config $CONFIG_FILE",
-    "lint": "eslint \"src/**/*.ts\" --color --fix",
+    "lint": "mkdir -p ./reports/lint && suppress-exit-code eslint --output-file ./reports/lint/eslint.out --fix $FORMAT_PARAM \"src/**/*.js\" 2>&1 | tee ./reports/lint/eslint.out",
     "test:unit": "CONFIG_FILE=jest.unit.config.js yarn launch:unit",
-    "watch:unit": "mkdir -p ./build && CONFIG_FILE=./jest.unit.watch.js WATCH_PARAM=\"--watch\" nice yarn --mutex file:./build/unit.mutex launch:unit"
+    "launch:watchUnit": "CONFIG_FILE=./jest.unit.watch.js WATCH_PARAM=\"--watch\" yarn --silent --mutex file:./build/unit.mutex launch:unit | cat",
+    "launch:watchLint": "chokidar \"src/**/*.js\" --initial --silent --command \"FORMAT_PARAM=--no-color yarn --silent --mutex file:./build/lint.mutex lint\"",
+    "watch:unit": "mkdir -p ./build && yarn launch:watchLint & yarn launch:watchUnit"
   },
   "author": "woldie",
   "license": "UNLICENSED",
@@ -37,11 +41,13 @@
     "lodash.uniq": "^4.5.0"
   },
   "devDependencies": {
+    "@jest/reporters": "^27.0.5",
     "@sinonjs/fake-timers": "^6.0.1",
     "@types/jest": "^26.0.23",
     "@typescript-eslint/eslint-plugin": "^4.26.1",
     "@typescript-eslint/parser": "^4.26.1",
     "@typescript-eslint/types": "^4.26.1",
+    "chokidar-cli": "^2.1.0",
     "eslint": "^7.21.0",
     "eslint-config-airbnb": "^18.2.1",
     "eslint-config-prettier": "^8.1.0",
@@ -53,10 +59,13 @@
     "jest-circus": "^26.6.3",
     "jest-fetch-mock": "^3.0.3",
     "jest-reporter": "^1.0.1",
+    "jsdoc": "^3.6.7",
+    "jsdoc-typeof-plugin": "^1.0.0",
     "jsdom-global": "^3.0.2",
     "nyc": "^15.1.0",
     "prettier": "^2.2.1",
     "sinon": "^11.1.1",
+    "suppress-exit-code": "^1.0.0",
     "webpack": "^5.31.2",
     "webpack-cli": "^4.6.0",
     "yarn-audit-html": "^2.0.1"

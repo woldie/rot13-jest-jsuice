@@ -1,6 +1,6 @@
-"use strict";
 
-var getParamNames = require("get-param-names");
+const forEach = require('lodash.foreach');
+const getParamNames = require("get-param-names");
 
 /**
  * Call a function once per parameterSet passed in whereParameterSets.  Useful for parameterizing tests.
@@ -13,29 +13,26 @@ function where(callWith, whereParameterSets) {
     throw new Error("callWith not a function");
   }
 
-  var parsedParameterNames = getParamNames(callWith);
+  const parsedParameterNames = getParamNames(callWith);
 
   // validate that the exact parameters in each parameterSet are found in argNames
-  whereParameterSets.forEach(function(whereParameterSet, whichParamSet) {
-    var whereParamName,
-      argMatchCount = 0;
+  whereParameterSets.forEach((whereParameterSet, whichParamSet) => {
+    let argMatchCount = 0;
 
-    for(whereParamName in whereParameterSet) {
-      if(whereParameterSet.hasOwnProperty(whereParamName) && parsedParameterNames.indexOf(whereParamName) < 0) {
-        throw new Error("unknown paramName " + whereParamName + " found in parameterSet " + whichParamSet);
+    forEach(whereParameterSet, (value, whereParamName) => {
+      if(parsedParameterNames.indexOf(whereParamName) < 0) {
+        throw new Error(`unknown paramName ${whereParamName} found in parameterSet ${  whichParamSet}`);
       }
-      argMatchCount++;
-    }
+      argMatchCount += 1;
+    });
 
     if(argMatchCount !== parsedParameterNames.length) {
-      throw new Error("Required parameters expected in parameterSet " + whichParamSet);
+      throw new Error(`Required parameters expected in parameterSet ${  whichParamSet}`);
     }
   });
 
-  whereParameterSets.forEach(function(whereParameterSet) {
-    var parameters = parsedParameterNames.map(function(parsedParameterName) {
-      return whereParameterSet[parsedParameterName];
-    });
+  whereParameterSets.forEach(whereParameterSet => {
+    const parameters = parsedParameterNames.map((parsedParameterName) => whereParameterSet[parsedParameterName]);
 
     callWith.apply(this, parameters);
   });

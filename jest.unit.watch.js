@@ -5,7 +5,7 @@ module.exports = { ...jestUnitTestConfigs,
   bail: false,
   verbose: false,
   reporters: [
-    'default',
+    '<rootDir>/src/testUtilities/WatchFriendlyReporter.js',
     [
       './node_modules/jest-reporter',
       {

@@ -1,4 +1,4 @@
-/* eslint-disable no-bitwise,no-underscore-dangle */
+/* eslint-disable no-bitwise,no-underscore-dangle,no-console */
 const Scope = require("./Scope");
 const InjectableType = require("./InjectableType");
 const Injectable = require("./Injectable");
@@ -296,7 +296,7 @@ describe("injector", () => {
     expect(anObject === anotherInstance.myObject).toBe(true); // (, "the OBJECT_INSTANCE injected really is a singleton");
   });
 
-  it("[newModuleGroup] will simultaneously add a group of injectables to an ModuleGroup -and- add that module to the Injector", () => {
+  it("[moduleGroup] will simultaneously add a group of injectables to an ModuleGroup -and- add that module to the Injector", () => {
     const anObject = {
       x: 123
     };
@@ -308,7 +308,7 @@ describe("injector", () => {
 
     injector.annotateConstructor(MyConstructor, injector.PROTOTYPE_SCOPE, "anObject");
 
-    injector.newModuleGroup("myGroup",
+    injector.moduleGroup("myGroup",
       "MyConstructor", MyConstructor,
       "anObject", anObject
     );
@@ -320,7 +320,7 @@ describe("injector", () => {
     expect(anObject === myConstructedObj.myObject).toBe(true); // (, "singleton object is same reference");
   });
 
-  it("[newModuleGroup] will error if your module uses the same name more than once", () => {
+  it("[moduleGroup] will error if your module uses the same name more than once", () => {
     function MyConstructor () {
     }
 
@@ -328,50 +328,50 @@ describe("injector", () => {
     }
 
     expect(() => {
-      injector.newModuleGroup("myGroup",
+      injector.moduleGroup("myGroup",
         "MyConstructor", MyConstructor,
         "MyConstructor", OtherConstructor
       );
     }).toThrow(/Module MyConstructor was registered more than once in myGroup module group/);
   });
 
-  it("[newModuleGroup] will error if you try to use the same module group name more than once", () => {
+  it("[moduleGroup] will error if you try to use the same module group name more than once", () => {
     function MyConstructor () {
     }
 
     function OtherConstructor () {
     }
 
-    injector.newModuleGroup("myGroup",
+    injector.moduleGroup("myGroup",
       "MyConstructor", MyConstructor
     );
 
     expect(() => {
-      injector.newModuleGroup("myGroup",
+      injector.moduleGroup("myGroup",
         "OtherConstructor", OtherConstructor
       );
     }).toThrow(/ModuleGroup myGroup already exists/);
   });
 
-  it("[newModuleGroup] will error if your module uses the same name more than once across module groups", () => {
+  it("[moduleGroup] will error if your module uses the same name more than once across module groups", () => {
     function MyConstructor () {
     }
 
     function OtherConstructor () {
     }
 
-    injector.newModuleGroup("otherGroup",
+    injector.moduleGroup("otherGroup",
       "MyConstructor", MyConstructor
     );
 
     expect(() => {
-      injector.newModuleGroup("myGroup",
+      injector.moduleGroup("myGroup",
         "MyConstructor", OtherConstructor
       );
     }).toThrow(/MyConstructor in module group myGroup was already registered in another module group otherGroup/);
   });
 
-  it("[newModuleGroup] will eager instantate when an eager singleton module is registered in a module group", () => {
+  it("[moduleGroup] will eager instantate when an eager singleton module is registered in a module group", () => {
     let constructorCalled = false;
 
     function MyConstructor () {
@@ -381,7 +381,7 @@ describe("injector", () => {
 
     injector.annotateConstructor(MyConstructor, injector.SINGLETON_SCOPE | injector.EAGER_FLAG);
 
-    injector.newModuleGroup("otherGroup",
+    injector.moduleGroup("otherGroup",
       "MyConstructor", MyConstructor
     );
 
@@ -569,15 +569,13 @@ describe("injector", () => {
 
   it("[createProvider] will incorporate a user-supplied factory callback into a new Provider class", () => {
     // GIVEN a factory function that takes dependencies and returns an object
-    const factoryFunction = function (display, printer) {
-        return {
-          display,
-          printer
-        };
-      };
+    const factoryFunction = (display, printer) => ({
+      display,
+      printer,
+    });
 
-      // WHEN I call createProvider with the factory function, number of additional parameters, and dep names
-      const provider = injector.createProvider(factoryFunction, 0, "display", "printer");
+    // WHEN I call createProvider with the factory function, number of additional parameters, and dep names
+    const provider = injector.createProvider(factoryFunction, 0, "display", "printer");
 
     // THEN new Provider was built as expected
     expect(provider.dependencies).toEqual(["display", "printer"]);

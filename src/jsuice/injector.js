@@ -13,9 +13,7 @@ const injectableMetadata = require("./injectableMetadata");
 const InjectorUtils = require('./InjectorUtils');
 
 /**
- * For internal use only.  injector.js exports a global singleton that should be invoked directly.
- * @package
- * @constructor
+ * J'suice Dependency Injector
  */
 class Injector {
   constructor() {
@@ -24,12 +22,14 @@ class Injector {
     /**
      * @name Injector#id
      * @type {number}
+     * @package
      */
     self.id = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
 
     /**
      * @name Injector#scopes
      * @type {Object.<Scope, Object<string, *>>}
+     * @package
      */
     self.scopes = {};
     self.scopes[Scope.SINGLETON] = {};
@@ -38,47 +38,52 @@ class Injector {
     /**
      * @name Injector#moduleGroups
      * @type {Array.<ModuleGroup>}
+     * @package
      */
     self.moduleGroups = [];
 
     /**
-     * @package
      * @name Injector#nameStack
      * @type {Array.<String>}
+     * @package
      */
     self.nameStack = [];
 
     /**
-     * @package
      * @name Injector#scopeStack
      * @type {Array.<Scope>}
+     * @package
      */
     self.scopeStack = [];
   }
 
   /**
-   * Make a new module group and add it to the Injector.
+   * @typedef {(Function|Object|Provider)} Subject
+   */
+
+  /**
+   * Define a new module group by name and add it to the Injector.
    *
-   * @param {String} name name of the module group being registered
-   * @param {...(String|*)} moduleDeclarations variable arguments containing alternating values of type String and *
-   * where the string is the name of an Injectable Module.  The subject of the Injectable Module of type * can be one of
-   * the following types:
+   * @param {String} name name of the module group being registered.  name must be unique
+   * @param {...(String|Subject)} moduleDeclarations variable arguments containing alternating values of type String
+   * and {@link Subject}.  Each String is the name that an Injectable Module will be identified by in the Injector.
+   * Each {@link Subject} is used by Injector to instantiate the named Injectable Module.  {@link Subject Subjects} can
+   * be one of the following types:
    * <ul>
    *   <li>function: always assumed to be a class constructor function.  This function must be annotated via the
-   *       {@link #annotateConstructor} method.  The <code>new</code> keyword is used on the constructor to instantiate
-   *       objects as needed.</li>
+   *       {@link #annotateConstructor} method.  Injector uses the <code>new</code> keyword on the constructor to
+   *       instantiate Injectable Modules when needed.</li>
    *   <li>object: If it is a plain javascript object, then subject is assumed to be SINGLETON-scoped and will be
-   *       injected as-is (not as a proxy or clone) to dependents.  If it is an <code>instanceof</code>
-   *       {@link Provider} created by {@link #createProvider}, then the subject will be constructed by calling the
-   *       provider function, and the object returned will be assumed to be PROTOTYPE-scope at time of injection to
-   *       dependents.</li>
+   *       injected as-is (not as a proxy or clone) to dependents.</li>
+   *   <li>{@link Provider}: If it is an <code>instanceof</code> {@link Provider} created by {@link #createProvider},
+   *       then the subject will be constructed by calling the provider function, and the object returned will be
+   *       assumed to be PROTOTYPE-scope at time of injection to dependents.</li>
    * </ul>
-   * @throws {Error} It is considered to be an error if moduleDeclarations is zero length, odd-lengthed, if any of the
-   * Injectable Module names are not String types, or if the module group name has been used before, or if module name
-   * has been used before in other module groups.
+   * @throws {Error} It is an error if moduleDeclarations is zero length, odd-lengthed, if any of the Injectable Module
+   * names are not String types, name has been used before, or if name has been used before in prior calls to {@link #moduleGroup}.
    * @return {Injector}
    */
-  newModuleGroup(name) {
+  moduleGroup(name) {
     // get the variable args starting at moduleDeclarations and reassign to that symbol as an array
     const moduleDeclarations = Array.from(arguments).slice(1);
 
@@ -143,7 +148,7 @@ class Injector {
    * Annotate a constructor function with metadata that instructs the injector what the scope, injectedParams and
    * other configuration flags should be when it instantiates using that constructor.  With the annotations, the
    * constructor is converted into a jsuice module that can be added to a module group using
-   * {@link Injector#newModuleGroup}.
+   * {@link Injector#moduleGroup}.
    *
    * @param {typeof T} ctor constructor function.  injectedParams.length + numberOfUserSuppliedArgs must exactly equal the
    * number of named parameters on the ctor function
@@ -151,19 +156,21 @@ class Injector {
    * <blockquote><pre>[ flags, [ numberOfUserSuppliedArgs, ] ] [ injectedParams... ]</pre></blockquote>
    * where:
    * <ul>
-   *   <li><code>Number flags</code> - integer containing flags (as set bits) that describe what the scope and
-   *   configuration flags should be for the constructor.  See {@link Injector#APPLICATION_SCOPE},
-   *   {@link Injector#SINGLETON_SCOPE}, {@link Injector#PROTOTYPE_SCOPE} and {@link Injector#EAGER_FLAG}</li>
+   *   <li><code>Number flags</code> - integer containing flag constants that describe
+   *   what the scope and configuration flags should be for the constructor.  Valid flag constants are
+   *   {@link Injector#APPLICATION_SCOPE}, {@link Injector#SINGLETON_SCOPE}, {@link Injector#PROTOTYPE_SCOPE},
+   *   {@link Injector#EAGER_FLAG} and {@link Injector#OUTER_FLAG}.  Use bitwise-OR or the plus operator to union
+   *   flag constants together into one flags value.</li>
    *   <li><code>Number numberOfUserSuppliedArgs</code> - positive integer describing how many extra parameters will the
    *   user pass to the constructor in addition to the ones supplied by the injector.  numberOfUserSuppliedArgs defaults
    *   to 0 if not specified.  It is an error for numberOfUserSuppliedArgs to be > 0 for scope flags other than
-   *   SCOPE_PROTOTYPE.</li>
+   *   {@link Injector#PROTOTYPE_SCOPE}.</li>
    *   <li><code>String... injectedParams</code> - names of modules that need to be instantiated and passed as parameters
    *   to the ctor at time of instantiation.</li>
    * </ul>
    * @returns {typeof T} annotated constructor function
    * @template T
-   * @see {@link Injector#newModuleGroup}
+   * @see {@link Injector#moduleGroup}
    */
   annotateConstructor(ctor) {
     if (!isFunction(ctor)) {
@@ -264,7 +271,7 @@ class Injector {
 
   /**
    * Create a Provider that wraps a function for acquiring an object instance.  The Provider is suitable for passing to
-   * {@link Injector#newModuleGroup} as an injectable subject.
+   * {@link Injector#moduleGroup} as an injectable subject.
    *
    * <p>Use Providers whenever items you want to be injectables cannot be represented with a class or there are
    * complicating factors to acquiring the injectable.  For example, an asynchronously initialized item would be wrapped
@@ -281,7 +288,7 @@ class Injector {
    * {@link Injector#getInstance}.
    * @param {...String=} injectedParams names of modules that need to be instantiated and passed as parameters to the
    * providerFunction at time of instantiation
-   * @returns {Provider} a Provider that can be passed to Injector#newModuleGroup as an injectable subject
+   * @returns {Provider} a Provider that can be passed to Injector#moduleGroup as an injectable subject
    */
   createProvider(providerFunction, numOfUserSuppliedArgs) {
     const dependenciesList = (arguments.length > 2) ? Array.from(arguments).slice(2) : ([]);
@@ -325,7 +332,7 @@ class Injector {
    */
 
   /**
-   * <p>Get all instances of named Injectables hosted for a module group.
+   * Get instances of named Injectables hosted for a module group by module group name.
    *
    * @param {String} moduleGroupName
    * @returns {Array.<ModuleInstance>} list of objects containing a single pair of injectable name -> instance of
@@ -555,28 +562,61 @@ class Injector {
  * @type {number}
  * @const
  */
-Injector.prototype.SINGLETON_SCOPE = 1;
+Object.defineProperty(Injector.prototype, 'SINGLETON_SCOPE', {
+  configurable: false,
+  enumerable: true,
+  writable: false,
+  value: 1
+});
 
 /**
  * @name Injector#APPLICATION_SCOPE
  * @type {number}
  * @const
  */
-Injector.prototype.APPLICATION_SCOPE = 2;
+Object.defineProperty(Injector.prototype, 'APPLICATION_SCOPE', {
+  configurable: false,
+  enumerable: true,
+  writable: false,
+  value: 2
+});
 
 /**
  * @name Injector#PROTOTYPE_SCOPE
  * @type {number}
  * @const
  */
-Injector.prototype.PROTOTYPE_SCOPE = 4;
+Object.defineProperty(Injector.prototype, 'PROTOTYPE_SCOPE', {
+  configurable: false,
+  enumerable: true,
+  writable: false,
+  value: 4
+});
 
 /**
+ * @name Injector#OUTER_FLAG
+ * @type {number}
+ * @const
+ */
+Object.defineProperty(Injector.prototype, 'OUTER_FLAG', {
+  configurable: false,
+  enumerable: true,
+  writable: false,
+  value: 64
+});
+
+/**
+ * The eager flag indicates that
  * @name Injector#EAGER_FLAG
  * @type {number}
  * @const
  */
-Injector.prototype.EAGER_FLAG = 128;
+Object.defineProperty(Injector.prototype, 'EAGER_FLAG', {
+  configurable: false,
+  enumerable: true,
+  writable: false,
+  value: 128
+});
 
 // global singleton
 module.exports = new Injector();

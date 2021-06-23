@@ -2,7 +2,7 @@ const isString = require("lodash.isstring");
 const Injectable = require("./Injectable");
 
 /**
- * This class is for internal use only.  Use {@link Injector#newModuleGroup} to create a new ModuleGroup.
+ * This class is for internal use only.  Use {@link Injector#moduleGroup} to create a new ModuleGroup.
  * @class
  * @package
  */

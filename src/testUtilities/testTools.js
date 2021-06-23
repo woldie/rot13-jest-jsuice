@@ -1,5 +1,7 @@
+const where = require('./where');
+
 const testTools = {
-  where: require('./where')
+  where
 };
 
 module.exports = testTools;
