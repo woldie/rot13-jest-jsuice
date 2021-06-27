@@ -15,7 +15,7 @@
     "launch:unit": "jest --passWithNoTests --silent --verbose $WATCH_PARAM --config $CONFIG_FILE",
     "launch:integration": "jest --runInBand --passWithNoTests --silent --verbose --config $CONFIG_FILE",
     "lint": "mkdir -p ./reports/lint && suppress-exit-code eslint --output-file ./reports/lint/eslint.out --fix $FORMAT_PARAM \"src/**/*.js\" 2>&1 | tee ./reports/lint/eslint.out",
-    "test:unit": "CONFIG_FILE=jest.unit.config.js yarn launch:unit",
+    "test:unit": "CONFIG_FILE=./jest.unit.config.js yarn launch:unit",
     "launch:watchUnit": "CONFIG_FILE=./jest.unit.watch.js WATCH_PARAM=\"--watch\" yarn --silent --mutex file:./build/unit.mutex launch:unit | cat",
     "launch:watchLint": "chokidar \"src/**/*.js\" --initial --silent --command \"FORMAT_PARAM=--no-color yarn --silent --mutex file:./build/lint.mutex lint\"",
     "watch:unit": "mkdir -p ./build && yarn launch:watchLint & yarn launch:watchUnit"
@@ -60,6 +60,7 @@
     "jest-fetch-mock": "^3.0.3",
     "jest-reporter": "^1.0.1",
     "jsdoc": "^3.6.7",
+    "jsdoc-plugin-intersection": "^1.0.4",
     "jsdoc-typeof-plugin": "^1.0.0",
     "jsdom-global": "^3.0.2",
     "nyc": "^15.1.0",

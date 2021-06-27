@@ -1,5 +1,5 @@
 /* eslint-disable prefer-rest-params,no-bitwise,max-classes-per-file */
-// noinspection JSCommentMatchesSignature
+// noinspection JSCommentMatchesSignature,JSBitwiseOperatorUsage
 
 const isString = require("lodash.isstring");
 const isFunction = require("lodash.isfunction");
@@ -11,6 +11,7 @@ const ModuleGroup = require("./ModuleGroup");
 const Provider = require("./Provider");
 const injectableMetadata = require("./injectableMetadata");
 const InjectorUtils = require('./InjectorUtils');
+const DependencyGraph = require('./DependencyGraph');
 
 /**
  * J'suice Dependency Injector
@@ -55,6 +56,13 @@ class Injector {
      * @package
      */
     self.scopeStack = [];
+
+    /**
+     * @name Injector#dependencyGraph
+     * @type {DependencyGraph}
+     * @package
+     */
+    self.dependencyGraph = new DependencyGraph();
   }
 
   /**
@@ -190,7 +198,8 @@ class Injector {
     const metaObj = {
       injectedParams: (argList.length > injectedParamsStartIndex) ? argList.slice(injectedParamsStartIndex) : [],
       numberOfUserSuppliedArgs: (isUserSuppliedArgsCountSpecified ? argList[2] : 0),
-      eager: false
+      eager: false,
+      scope: Scope.PROTOTYPE
     };
 
     for (let i = 0, ii = metaObj.injectedParams.length; i < ii; i += 1) {
@@ -274,9 +283,9 @@ class Injector {
    * {@link Injector#moduleGroup} as an injectable subject.
    *
    * <p>Use Providers whenever items you want to be injectables cannot be represented with a class or there are
-   * complicating factors to acquiring the injectable.  For example, an asynchronously initialized item would be wrapped
-   * with a Promise.  In that case, providerFunction would return a Promise to the item and the user
-   * would wait on the Promise to get access to the item.
+   * complicating factors to acquiring the injectable.  For example, an asynchronously initialized item would be
+   * wrapped with a Promise.  In that case, providerFunction would return a Promise to the item and the user would
+   * wait on the Promise to get access to the item.
    *
    * @param {function} providerFunction a function that takes injectedParams plus optional user-supplied arguments and
    * returns an object.  injectedParams.length + numOfUserSuppliedArgs must exactly equal the number of named
@@ -307,6 +316,14 @@ class Injector {
     }
 
     injectableMetadata.setProvider(provider, providerFunction);
+
+    // copy metaObj properties into the metadata object for the provider
+    Object.assign(injectableMetadata.findOrAddMetadataFor(provider), {
+      injectedParams: dependenciesList,
+      numberOfUserSuppliedArgs: numOfUserSuppliedArgs,
+      eager: false,
+      scope: Scope.PROTOTYPE
+    });
 
     return provider;
   }
@@ -513,7 +530,7 @@ class Injector {
       return existingModuleGroup;
     }
 
-    const moduleGroup = new ModuleGroup(name);
+    const moduleGroup = new ModuleGroup(name, self.dependencyGraph, injectableMetadata);
     self.moduleGroups.push(moduleGroup);
 
     return moduleGroup;

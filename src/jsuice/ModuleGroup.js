@@ -9,19 +9,37 @@ const Injectable = require("./Injectable");
 class ModuleGroup {
   /**
    * @param {String} name module group name
+   * @param {DependencyGraph} dependencyGraph dependency graph from the parent injector
+   * @param {InjectableMetadata} injectableMetadata injectable metadata
    */
-  constructor(name) {
+  constructor(name, dependencyGraph, injectableMetadata) {
     /**
      * @name ModuleGroup#name
      * @type {string}
+     * @package
      */
     this.name = name;
 
     /**
      * @name ModuleGroup#injectables
      * @type {Object.<string, *>}
+     * @package
      */
     this.injectables = {};
+
+    /**
+     * @name ModuleGroup#dependencyGraph
+     * @type {DependencyGraph}
+     * @package
+     */
+    this.dependencyGraph = dependencyGraph;
+
+    /**
+     * @name ModuleGroup#injectableMetadata
+     * @type {InjectableMetadata}
+     * @package
+     */
+    this.injectableMetadata = injectableMetadata;
   }
 
   /**
@@ -39,6 +57,14 @@ class ModuleGroup {
 
     const injectable = new Injectable(subject, injectableName);
     this.injectables[injectableName] = injectable;
+
+    this.dependencyGraph.associateInjectableWithModuleGroup(injectable, this.name);
+    if (this.injectableMetadata.hasMetadataAssigned(subject)) {
+      const metadata = this.injectableMetadata.findOrAddMetadataFor(subject);
+      (metadata.injectedParams || []).forEach((paramName) => {
+        this.dependencyGraph.associateConstructionParameterWithInjectable(paramName, injectable);
+      });
+    }
 
     return injectable;
   }

@@ -1,11 +1,11 @@
-/* eslint-disable no-bitwise,no-underscore-dangle,no-console */
+/* eslint-disable no-bitwise,no-underscore-dangle,no-console,no-unused-vars */
 const Scope = require("./Scope");
 const InjectableType = require("./InjectableType");
 const Injectable = require("./Injectable");
 const injector = require('./injector');
 const injectableMetadata = require('./injectableMetadata');
 
-const { where } = require('../testUtilities/testTools');
+jest.mock('./DependencyGraph');
 
 describe("injector", () => {
   beforeEach(() => {
@@ -35,7 +35,9 @@ describe("injector", () => {
     }
 
     const moduleGroup = injector.addModuleGroup("myGroup");
-    moduleGroup.register("MyConstructor", MyConstructor);
+    const ctorInjectable = moduleGroup.register("MyConstructor", MyConstructor);
+
+    expect(injector.dependencyGraph.associateInjectableWithModuleGroup).toHaveBeenCalledWith(ctorInjectable, "myGroup");
 
     const newPrototypeScopeInstance = injector.getInstance("MyConstructor");
     expect(newPrototypeScopeInstance).not.toBeNull();
@@ -423,77 +425,64 @@ describe("injector", () => {
     });
   });
 
-  where((type, nonStringValue) => {
-    it(`[annotateConstructor-0] will throw if a non-string appears in injectedParams: ${type}`, () => {
-      function MyConstructor (blah) {
-        this.blah = blah;
-      }
-      MyConstructor.prototype.constructor = MyConstructor;
+  test.each`
+    type          | nonStringValue
+    ${'regexp'}   | ${/not a string/}
+    ${'array'}    | ${["string", "string"]}
+  ${'function'}   | ${function myFunc () {}}
+  `('[annotateConstructor-0] will throw if a non-string appears in injectedParams: $type', ({ type, nonStringValue }) => {
+    // GIVEN: a constructor with 1 injected arg
+    function MyConstructor (blah) {
+      this.blah = blah;
+    }
+    MyConstructor.prototype.constructor = MyConstructor;
 
-      // EXPECT: injector will throw if any injectedParams contain non-strings
-      expect(() => {
-        injector.annotateConstructor(MyConstructor, nonStringValue);
-      }).toThrow(/Only strings may be passed for injectedParams/); // , "should throw when non-strings appear for injectedParams");
-    });
+    // EXPECT: injector will throw if any injectedParams contain non-strings
+    expect(() => {
+      injector.annotateConstructor(MyConstructor, nonStringValue);
+    }).toThrow(/Only strings may be passed for injectedParams/); // , "should throw when non-strings appear for injectedParams");
 
-    it(`[annotateConstructor-1] will throw if a non-string appears in injectedParams: ${type}`, () => {
-      function MyConstructor (blah, borb) {
-        this.blah = blah;
-        this.borb = borb;
-      }
-      MyConstructor.prototype.constructor = MyConstructor;
+    // GIVEN: a constructor with 2 injected args
+    function MyConstructor2 (blah, borb) {
+      this.blah = blah;
+      this.borb = borb;
+    }
+    MyConstructor2.prototype.constructor = MyConstructor2;
 
-      // EXPECT: injector will throw if any injectedParams contain non-strings
-      expect(() => {
-        injector.annotateConstructor(MyConstructor, injector.SINGLETON_SCOPE, "okay1", nonStringValue);
-      }).toThrow(/Only strings may be passed for injectedParams/); // , "should throw when non-strings appear for injectedParams");
-    });
+    // EXPECT: injector will throw if any injectedParams contain non-strings
+    expect(() => {
+      injector.annotateConstructor(MyConstructor2, injector.SINGLETON_SCOPE, "okay1", nonStringValue);
+    }).toThrow(/Only strings may be passed for injectedParams/); // , "should throw when non-strings appear for injectedParams");
 
-    it(`[annotateConstructor-2] will throw if a non-string appears in injectedParams: ${type}`, () => {
-      function MyConstructor (blah, borb, bwee) {
-        this.blah = blah;
-        this.borb = borb;
-        this.bwee = bwee;
-      }
-      MyConstructor.prototype.constructor = MyConstructor;
+    // GIVEN: a constructor with 3 args
+    function MyConstructor3 (blah, borb, bwee) {
+      this.blah = blah;
+      this.borb = borb;
+      this.bwee = bwee;
+    }
+    MyConstructor3.prototype.constructor = MyConstructor3;
 
-      // EXPECT: injector will throw if any injectedParams contain non-strings
-      expect(() => {
-        injector.annotateConstructor(MyConstructor, injector.SINGLETON_SCOPE, 0, "okay1", "okay2", nonStringValue);
-      }).toThrow(/Only strings may be passed for injectedParams/); // , "should throw when non-strings appear for injectedParams");
-    });
-  }, [
-        {
-          type: "regexp",
-          nonStringValue: /not a string/
-        },
-        {
-          type: "array",
-          nonStringValue: ["string", "string"]
-        },
-        {
-          type: "function",
-          nonStringValue: function myFunc () {}
-        }
-    ]
-  );
+    // EXPECT: injector will throw if any injectedParams contain non-strings
+    expect(() => {
+      injector.annotateConstructor(MyConstructor3, injector.SINGLETON_SCOPE, 0, "okay1", "okay2", nonStringValue);
+    }).toThrow(/Only strings may be passed for injectedParams/); // , "should throw when non-strings appear for injectedParams");
+  });
 
-  it("[annotateConstructor] will fail if a scope is not set or if more than one scope is set", () => {
-    [
-      0,
-      injector.SINGLETON_SCOPE | injector.PROTOTYPE_SCOPE,
-      injector.APPLICATION_SCOPE | injector.PROTOTYPE_SCOPE,
-      injector.SINGLETON_SCOPE | injector.APPLICATION_SCOPE,
-      injector.SINGLETON_SCOPE | injector.APPLICATION_SCOPE | injector.PROTOTYPE_SCOPE
-    ].forEach((flags) => {
-      function MyConstructor () {
-      }
-      MyConstructor.prototype.constructor = MyConstructor;
+  test.each`
+    flags
+    ${0}
+    ${injector.SINGLETON_SCOPE | injector.PROTOTYPE_SCOPE}
+    ${injector.APPLICATION_SCOPE | injector.PROTOTYPE_SCOPE}
+    ${injector.SINGLETON_SCOPE | injector.APPLICATION_SCOPE}
+    ${injector.SINGLETON_SCOPE | injector.APPLICATION_SCOPE | injector.PROTOTYPE_SCOPE}
+  `('[annotateConstructor] will fail if a scope is not set or if more than one scope is set: $flags', ({ flags }) => {
+    function MyConstructor () {
+    }
+    MyConstructor.prototype.constructor = MyConstructor;
 
-      expect(() => {
-        injector.annotateConstructor(MyConstructor, flags);
-      }).toThrow(/exactly one scope flag/i); // , "Expect annotateConstructor to throw when flags does not contain exactly one scope");
-    });
+    expect(() => {
+      injector.annotateConstructor(MyConstructor, flags);
+    }).toThrow(/exactly one scope flag/i); // , "Expect annotateConstructor to throw when flags does not contain exactly one scope");
   });
 
   test.each`
@@ -550,22 +539,21 @@ describe("injector", () => {
     }).toThrow(/ctor.prototype is null/);
   });
 
-  where((description, badConstructor) => {
-    it(`[annotateConstructor] will fail if prototype does not have ctor set on constructor: ${description}`, () => {
-      function MyConstructor () {
-      }
+  test.each`
+    description                               | badConstructor
+    ${'null'}                                 | ${null}
+    ${'undefined'}                            | ${undefined}
+    ${'A function other than MyConstructor'}  | ${function NotTHeSameFunction() {}}
+  `('[annotateConstructor] will fail if prototype does not have ctor set on constructor: $description', ({ description, badConstructor }) => {
+    function MyConstructor () {
+    }
 
-      MyConstructor.prototype.constructor = badConstructor;
+    MyConstructor.prototype.constructor = badConstructor;
 
-      expect(() => {
-        injector.annotateConstructor(MyConstructor, 0);
-      }).toThrow(/ctor's prototype requires a 'constructor' property that equates to ctor/);
-    });
-  }, [
-    { description: "null", badConstructor: null },
-    { description: "undefined", badConstructor: undefined },
-    { description: "A function other than MyConstructor", badConstructor: function NotTHeSameFunction() {} }
-  ]);
+    expect(() => {
+      injector.annotateConstructor(MyConstructor, 0);
+    }).toThrow(/ctor's prototype requires a 'constructor' property that equates to ctor/);
+  });
 
   it("[createProvider] will incorporate a user-supplied factory callback into a new Provider class", () => {
     // GIVEN a factory function that takes dependencies and returns an object
@@ -606,12 +594,12 @@ describe("injector", () => {
 
     moduleGroup.register("myConstructedObject", MyConstructor);
 
-    const moduleFactory = injector.createProvider((myConstructedObject) => ({
+    const provider = injector.createProvider((myConstructedObject) => ({
         myConstructedObject,
         myObject: myConstructedObject.myObject
       }), 0, "myConstructedObject");
 
-    moduleGroup.register("myFactoryBuiltObject", moduleFactory);
+    moduleGroup.register("myFactoryBuiltObject", provider);
 
     const instance = injector.getInstance("myFactoryBuiltObject");
 
@@ -651,49 +639,26 @@ describe("injector", () => {
     expect(instance !== anotherInstance).toBe(true); // , "factory function was called twice due to prototype scope");
   });
 
-  where((scope, type) => {
-    it(`[getInstanceForInjectable] will throw if you pass any assistedInjectionParams for ${scope} and ${type}`, () => {
-      // GIVEN a dummy injectable with scope and type
-      const injectable = new Injectable({});
-      injectable.scope = scope;
-      injectable.type = type;
+  test.each`
+    scope                 | type
+    ${Scope.PROTOTYPE}    | ${InjectableType.OBJECT_INSTANCE}
+    ${Scope.APPLICATION}  | ${InjectableType.INJECTED_CONSTRUCTOR}
+    ${Scope.APPLICATION}  | ${InjectableType.OBJECT_INSTANCE}
+    ${Scope.APPLICATION}  | ${InjectableType.PROVIDER}
+    ${Scope.SINGLETON}    | ${InjectableType.INJECTED_CONSTRUCTOR}
+    ${Scope.SINGLETON}    | ${InjectableType.OBJECT_INSTANCE}
+    ${Scope.SINGLETON}    | ${InjectableType.PROVIDER}
+  `("[getInstanceForInjectable] will throw if you pass any assistedInjectionParams for $scope and $type", ({ scope, type }) => {
+    // GIVEN a dummy injectable with scope and type
+    const injectable = new Injectable({});
+    injectable.scope = scope;
+    injectable.type = type;
 
-      // EXPECT getInstanceForInjectable to throw
-      expect(() => {
-        injector.getInstanceForInjectable(injectable, [], [], ["assisted injection params not expected here"]);
-      }).toThrow(/Assisted injection parameters were passed but are not allowed/);
-    });
-  }, [
-    // WHERE: only PROTOTYPE, PROVIDER or INJECTED_CONSTRUCTOR supports assisted injection (at this time)
-    {
-      scope: Scope.PROTOTYPE,
-      type: InjectableType.OBJECT_INSTANCE
-    },
-    {
-      scope: Scope.APPLICATION,
-      type: InjectableType.INJECTED_CONSTRUCTOR
-    },
-    {
-      scope: Scope.APPLICATION,
-      type: InjectableType.OBJECT_INSTANCE
-    },
-    {
-      scope: Scope.APPLICATION,
-      type: InjectableType.PROVIDER
-    },
-    {
-      scope: Scope.SINGLETON,
-      type: InjectableType.INJECTED_CONSTRUCTOR
-    },
-    {
-      scope: Scope.SINGLETON,
-      type: InjectableType.OBJECT_INSTANCE
-    },
-    {
-      scope: Scope.SINGLETON,
-      type: InjectableType.PROVIDER
-    }
-  ]);
+    // EXPECT getInstanceForInjectable to throw
+    expect(() => {
+      injector.getInstanceForInjectable(injectable, [], [], ["assisted injection params not expected here"]);
+    }).toThrow(/Assisted injection parameters were passed but are not allowed/);
+  });
 
   it("[getModuleGroupInstances] will fail if there is an attempt to pass assisted injection parameters", () => {
     expect(() => {

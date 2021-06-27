@@ -1,8 +1,9 @@
-/* eslint-disable max-classes-per-file */
+/* eslint-disable max-classes-per-file,max-len */
+// noinspection JSCheckFunctionSignatures
 
-const ModuleGroup = require("./ModuleGroup");
-const Scope = require("./Scope");
-const InjectableType = require("./InjectableType");
+const ModuleGroup = require('./ModuleGroup');
+const { PROTOTYPE, SINGLETON } = require('./Scope');
+const { INJECTED_CONSTRUCTOR, OBJECT_INSTANCE } = require('./InjectableType');
 const injectableMetadata = require('./injectableMetadata');
 
 class MyTestClass {
@@ -25,93 +26,95 @@ class MyBusyMetaClass {
   }
 }
 
-describe("ModuleGroup", () => {
+describe('ModuleGroup', () => {
+  /**
+   * @type {DependencyGraph}
+   */
+  let dependencyGraph;
+
+  /**
+   * @type {ModuleGroup}
+   */
   let moduleGroup;
 
   beforeEach(() => {
-    moduleGroup = new ModuleGroup("myInjector");
+    dependencyGraph = /** @type {DependencyGraph} */ {
+      registerSubject: jest.fn(),
+      associateInjectableWithModuleGroup: jest.fn(),
+      associateConstructionParameterWithInjectable: jest.fn()
+    };
+    moduleGroup = new ModuleGroup('myModuleGroup', dependencyGraph, injectableMetadata);
     injectableMetadata.resetAll();
 
     Object.assign(injectableMetadata.findOrAddMetadataFor(MyGoodMetaClass), {
-      injectedParams: ["InjectOne", "InjectTwo"],
+      injectedParams: ['InjectOne', 'InjectTwo'],
       numberOfUserSuppliedArgs: 0
     });
 
     Object.assign(injectableMetadata.findOrAddMetadataFor(MyBusyMetaClass), {
-      injectedParams: ["InjectOne"],
+      injectedParams: ['InjectOne'],
       numberOfUserSuppliedArgs: 0,
-      scope: Scope.PROTOTYPE
+      scope: PROTOTYPE
     });
   });
 
-  it("will allow you to register a constructor function", () => {
-    moduleGroup.register("MyTestClass", MyTestClass);
+  test.each`
+    injectableName        | subject             | scope           | injectableType           | injectedParamNames
+    ${'MyTestClass'}      | ${MyTestClass}      | ${PROTOTYPE}    | ${INJECTED_CONSTRUCTOR}  | ${[]}
+    ${'MyGoodMetaClass'}  | ${MyGoodMetaClass}  | ${PROTOTYPE}    | ${INJECTED_CONSTRUCTOR}  | ${[
+                                                                                                   'InjectOne',
+                                                                                                   'InjectTwo'
+                                                                                                 ]}
+    ${'MyBusyMetaClass'}  | ${MyBusyMetaClass}  | ${PROTOTYPE}    | ${INJECTED_CONSTRUCTOR}  | ${[ 'InjectOne' ]}
+    ${'anObject'}         | ${{ "abc": 123 }}   | ${SINGLETON}    | ${OBJECT_INSTANCE}       | ${[]}
+  `('will succeed when subject and injectedParams list counts match: $injectableName', ({
+      injectableName,
+      subject,
+      scope,
+      injectableType,
+      injectedParamNames }) => {
 
-    const injectable = moduleGroup.getInjectable("MyTestClass");
-    expect(injectable.type).toEqual(InjectableType.INJECTED_CONSTRUCTOR); // , "when you provide a function to register(), it automatically assigns INJECTED_CONSTRUCTOR to type");
-    expect(injectable.scope).toEqual(Scope.PROTOTYPE); // , "Default scope");
-    expect(injectable.injectedParams).toEqual([]); // , "Default empty args list") ;
-    expect(MyTestClass === injectable.subject).toBe(true); // , "injectable found by name");
+    // WHEN: I register a class with the module group
+    const classInjectable = moduleGroup.register(injectableName, subject);
+
+    // THEN: I can retrieve the injectable back from the moduleGroup
+    expect(moduleGroup.getInjectable(injectableName)).toStrictEqual(classInjectable);
+
+    // AND: the injectable will be populated with the expected fields
+    expect(classInjectable).not.toBeNull();
+    expect(classInjectable.scope).toEqual(scope);
+    expect(classInjectable.injectedParams).toEqual(injectedParamNames);
+    expect(classInjectable.subject).toStrictEqual(subject);
+    expect(classInjectable.type).toEqual(injectableType);
+
+    // AND: the class should have been associated with the moduleGroup in the dependency graph
+    expect(dependencyGraph.associateInjectableWithModuleGroup)
+      .toHaveBeenCalledWith(classInjectable, 'myModuleGroup')
+
+    // AND: its constructor parameters should have been associated with the dependency graph
+    expect(dependencyGraph.associateConstructionParameterWithInjectable)
+      .toHaveBeenCalledTimes(injectedParamNames.length);
+    injectedParamNames.forEach((paramName) => {
+      expect(dependencyGraph.associateConstructionParameterWithInjectable)
+      .toHaveBeenCalledWith(paramName, classInjectable)
+    });
   });
 
-  it("will not allow you to register a constructor function under a name that's already taken", () => {
-    moduleGroup.register("MyTestClass", MyTestClass);
+  it('will not allow you to register a constructor function under a name thats already taken', () => {
+    moduleGroup.register('MyTestClass', MyTestClass);
 
     expect(() => {
-      moduleGroup.register("MyTestClass", MyTestClass);
-    }).toThrow(); // , Error, "can't register a name in the moduleGroup more than once");
+      moduleGroup.register('MyTestClass', MyTestClass);
+    }).toThrow(/already registered in module group/);
   });
 
-  it("will succeed when constructor arg and injectedParams list counts match", () => {
+  it('will throw if the first parameter is not a string', () => {
     expect(() => {
-      moduleGroup.register("MyGoodMetaClass", MyGoodMetaClass);
-    }).not.toThrow(); // , "MyGoodMetaClass has equal injectedParams and constructor arg counts");
-  });
-
-  it("[register] will create a injectable when I get a successful registration and register it with the group", () => {
-    const injectable = moduleGroup.register("MyGoodMetaClass", MyGoodMetaClass);
-
-    expect(injectable === moduleGroup.getInjectable("MyGoodMetaClass")).toBe(true); // , "register returns same object as getInjectable");
-
-    expect(injectable).not.toBeNull();
-    expect(injectable.scope).toEqual(Scope.PROTOTYPE); // , "Default is PROTOTYPE when not specified in $meta");
-    expect(injectable.injectedParams).toEqual([ "InjectOne", "InjectTwo" ]);
-    expect(MyGoodMetaClass === injectable.subject).toBe(true);
-    expect(injectable.type).toEqual(InjectableType.INJECTED_CONSTRUCTOR); // , "register makes this type when subject is a function");
-  });
-
-  it("will create an injectable with all metadata parsed when I get a successful registration", () => {
-    moduleGroup.register("MyBusyMetaClass", MyBusyMetaClass);
-    const injectable = moduleGroup.getInjectable("MyBusyMetaClass");
-
-    expect(injectable).not.toBeNull();
-    expect(injectable.scope).toEqual(Scope.PROTOTYPE);
-    expect(injectable.injectedParams).toEqual([ "InjectOne" ]);
-    expect(MyBusyMetaClass === injectable.subject).toBe(true);
-    expect(injectable.type).toEqual(InjectableType.INJECTED_CONSTRUCTOR);
-  });
-
-  it("will create an injectable for a singleton object if an object is passed to register", () => {
-    const anObject = { "abc": 123 };
-
-    moduleGroup.register("anObject", anObject);
-
-    const injectable = moduleGroup.getInjectable("anObject");
-
-    expect(injectable).not.toBeNull();
-    expect(injectable.scope).toEqual(Scope.SINGLETON); // , "when you provide an object to register(), it automatically assigns singleton scope");
-    expect(injectable.injectedParams).toEqual([]); // , "no injected/constructor params");
-    expect(injectable.subject === anObject).toBe(true);
-    expect(injectable.type).toEqual(InjectableType.OBJECT_INSTANCE); // , "when you provide an object to register(), it automatically assigns OBJECT_INSTANCE to type");
-  });
-
-  it("will throw if the first parameter is not a string", () => {
-    expect(() => {
-      moduleGroup.register([ "this is an array, not a string" ], {});
+      moduleGroup.register([ 'this is an array, not a string' ], {});
     }).toThrow(/Expected first parameter to be a string/);
   });
 
-  it("[getInjectable] will return null when an injectable is not found", () => {
-    expect(moduleGroup.getInjectable("not a registered thing")).toBeNull();
+  it('[getInjectable] will return null when an injectable is not found', () => {
+    expect(moduleGroup.getInjectable('not a registered thing')).toBeNull();
   });
 });

@@ -29,22 +29,22 @@ class Injectable {
 
         if (!injectableMetadata.hasMetadataAssigned(subject)) {
           if (subject.length) {
-            throw new Error(`Injectable '${injectableName}' constructor function requires metadata annotations ` +
-                `property to describe its constructor args`);
+            throw new Error(`Injectable constructor function '${
+              injectableName}' requires metadata annotations property to describe its constructor args`);
           }
         } else {
           metaObj = injectableMetadata.findOrAddMetadataFor(subject);
           describedParameters = metaObj.injectedParams || [];
 
-          if (Object.prototype.hasOwnProperty.call(metaObj, "type")) {
+          if (Object.prototype.hasOwnProperty.call(metaObj, 'type')) {
             throw new Error(`Injectable may not specify its own type in its metadata: ${injectableName}`);
           }
 
           if ((describedParameters.length + metaObj.numberOfUserSuppliedArgs) !== subject.length) {
-            throw new Error(`Injectable '${injectableName}' constructor function argument count ` +
-                `(${subject.length}) differs from the expected count of injectedParams in type metadata ` +
-                `(${describedParameters.length}) plus number of expected user-supplied arguments ` +
-                `(${metaObj.numberOfUserSuppliedArgs})`);
+            throw new Error(`Injectable '${injectableName}' constructor function argument count (${
+              subject.length}) differs from the expected count of injectedParams in type metadata (${
+              describedParameters.length}) plus number of expected user-supplied arguments (${
+              metaObj.numberOfUserSuppliedArgs})`);
           }
 
           Array.prototype.push.apply(self.injectedParams, describedParameters);
@@ -58,10 +58,6 @@ class Injectable {
         break;
 
       case "object":
-        if (subject instanceof String) {
-          Injectable.failWithTypeofError(injectableName, "String");
-        }
-
         if (subject instanceof Provider) {
           type = InjectableType.PROVIDER;
           scope = Scope.PROTOTYPE;
@@ -84,7 +80,7 @@ class Injectable {
     self.type = type;
 
     /**
-     * @type {Object|function}
+     * @type {Object|Function}
      */
     self.subject = subject;
 
