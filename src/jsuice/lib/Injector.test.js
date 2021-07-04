@@ -1,13 +1,21 @@
 /* eslint-disable no-bitwise,no-underscore-dangle,no-console,no-unused-vars */
-const Scope = require("./Scope");
-const InjectableType = require("./InjectableType");
-const Injectable = require("./Injectable");
-const injector = require('./injector');
+const Scope = require('./Scope');
+const Flags = require('./Flags')
+const InjectableType = require('./InjectableType');
+const Injectable = require('./Injectable');
+const Injector = require('./Injector');
 const injectableMetadata = require('./injectableMetadata');
 
-jest.mock('./DependencyGraph');
+jest.mock('./dependencies/DependencyGraph');
 
-describe("injector", () => {
+describe("Injector", () => {
+  /** @type {Injector} */
+  let injector;
+
+  beforeAll(() => {
+    injector = new Injector();
+  });
+
   beforeEach(() => {
     injector.clearScope(Scope.SINGLETON);
     injector.clearScope(Scope.APPLICATION);
@@ -62,7 +70,7 @@ describe("injector", () => {
       }
     }
 
-    injector.annotateConstructor(MyConstructor, injector.PROTOTYPE_SCOPE);
+    injector.annotateConstructor(MyConstructor, Scope.PROTOTYPE);
 
     moduleGroup.register("myObject", MyConstructor);
 
@@ -76,6 +84,7 @@ describe("injector", () => {
     expect(injectableMetadata.hasMetadataAssigned(MyConstructor));
     expect(injectableMetadata.findOrAddMetadataFor(MyConstructor)).toEqual({
       scope: Scope.PROTOTYPE,
+      flags: 0,
       eager: false,
       injectedParams: [],
       numberOfUserSuppliedArgs: 0,
@@ -96,7 +105,7 @@ describe("injector", () => {
     }
     MyConstructorWithInjection.prototype.constructor = MyConstructorWithInjection;
 
-    injector.annotateConstructor(MyConstructorWithInjection, injector.PROTOTYPE_SCOPE, "MyConstructor");
+    injector.annotateConstructor(MyConstructorWithInjection, Scope.PROTOTYPE, "MyConstructor");
 
     moduleGroup.register("MyConstructorWithInjection", MyConstructorWithInjection);
 
@@ -123,7 +132,7 @@ describe("injector", () => {
     }
     MyConstructor.prototype.constructor = MyConstructor;
 
-    injector.annotateConstructor(MyConstructor, injector.PROTOTYPE_SCOPE, 3, "other");
+    injector.annotateConstructor(MyConstructor, Scope.PROTOTYPE, 3, "other");
 
     moduleGroup.register("MyConstructor", MyConstructor);
 
@@ -148,7 +157,7 @@ describe("injector", () => {
 
     // WHEN I try to annotate the constructor with a wrong number of parameters (1+3 instead of 1+2)
     expect(() => {
-      injector.annotateConstructor(MyConstructor, injector.PROTOTYPE_SCOPE, 3, "other");
+      injector.annotateConstructor(MyConstructor, Scope.PROTOTYPE, 3, "other");
     }).toThrow(/Expected ctor to have 1 injectables \+ 3 extra parameters, but ctor only has 3 params/);
   });
 
@@ -166,6 +175,7 @@ describe("injector", () => {
     expect(injectableMetadata.hasMetadataAssigned(MyConstructor)).toStrictEqual(true);
     expect(injectableMetadata.findOrAddMetadataFor(MyConstructor)).toEqual({
       scope: Scope.PROTOTYPE,
+      flags: 0,
       eager: false,
       numberOfUserSuppliedArgs: 0,
       injectedParams: ["other"]
@@ -185,6 +195,7 @@ describe("injector", () => {
     expect(injectableMetadata.hasMetadataAssigned(MyConstructor)).toStrictEqual(true);
     expect(injectableMetadata.findOrAddMetadataFor(MyConstructor)).toEqual({
       scope: Scope.PROTOTYPE,
+      flags: 0,
       eager: false,
       numberOfUserSuppliedArgs: 0,
       injectedParams: []
@@ -199,7 +210,7 @@ describe("injector", () => {
     }
     MyConstructor.prototype.constructor = MyConstructor;
 
-    injector.annotateConstructor(MyConstructor, injector.PROTOTYPE_SCOPE, "MyOtherConstructor");
+    injector.annotateConstructor(MyConstructor, Scope.PROTOTYPE, "MyOtherConstructor");
 
     moduleGroup.register("MyConstructor", MyConstructor);
 
@@ -208,7 +219,7 @@ describe("injector", () => {
     }
     MyOtherConstructor.prototype.constructor = MyOtherConstructor;
 
-    injector.annotateConstructor(MyOtherConstructor, injector.PROTOTYPE_SCOPE, "MyConstructor");
+    injector.annotateConstructor(MyOtherConstructor, Scope.PROTOTYPE, "MyConstructor");
 
     moduleGroup.register("MyOtherConstructor", MyOtherConstructor);
 
@@ -225,7 +236,7 @@ describe("injector", () => {
     }
     MyConstructor.prototype.constructor = MyConstructor;
 
-    injector.annotateConstructor(MyConstructor, injector.SINGLETON_SCOPE);
+    injector.annotateConstructor(MyConstructor, Scope.SINGLETON);
 
     moduleGroup.register("MyConstructor", MyConstructor);
 
@@ -249,7 +260,7 @@ describe("injector", () => {
     }
     MyPrototype.prototype.constructor = MyPrototype;
 
-    injector.annotateConstructor(MyPrototype, injector.PROTOTYPE_SCOPE);
+    injector.annotateConstructor(MyPrototype, Scope.PROTOTYPE);
 
     moduleGroup.register("MyPrototype", MyPrototype);
 
@@ -258,7 +269,7 @@ describe("injector", () => {
     }
     MySingleton.prototype.constructor = MySingleton;
 
-    injector.annotateConstructor(MySingleton, injector.SINGLETON_SCOPE, "MyPrototype");
+    injector.annotateConstructor(MySingleton, Scope.SINGLETON, "MyPrototype");
 
     moduleGroup.register("MySingleton", MySingleton);
 
@@ -285,7 +296,7 @@ describe("injector", () => {
     }
     MyConstructor.prototype.constructor = MyConstructor;
 
-    injector.annotateConstructor(MyConstructor, injector.PROTOTYPE_SCOPE, "anObject");
+    injector.annotateConstructor(MyConstructor, Scope.PROTOTYPE, "anObject");
 
     moduleGroup.register("MyConstructor", MyConstructor);
 
@@ -308,7 +319,7 @@ describe("injector", () => {
     }
     MyConstructor.prototype.constructor = MyConstructor;
 
-    injector.annotateConstructor(MyConstructor, injector.PROTOTYPE_SCOPE, "anObject");
+    injector.annotateConstructor(MyConstructor, Scope.PROTOTYPE, "anObject");
 
     injector.moduleGroup("myGroup",
       "MyConstructor", MyConstructor,
@@ -381,7 +392,7 @@ describe("injector", () => {
     }
     MyConstructor.prototype.constructor = MyConstructor;
 
-    injector.annotateConstructor(MyConstructor, injector.SINGLETON_SCOPE | injector.EAGER_FLAG);
+    injector.annotateConstructor(MyConstructor, Scope.SINGLETON | Flags.EAGER);
 
     injector.moduleGroup("otherGroup",
       "MyConstructor", MyConstructor
@@ -397,11 +408,12 @@ describe("injector", () => {
     }
     MyConstructor.prototype.constructor = MyConstructor;
 
-    injector.annotateConstructor(MyConstructor, injector.SINGLETON_SCOPE | injector.EAGER_FLAG, "gazinta", "another");
+    injector.annotateConstructor(MyConstructor, Scope.SINGLETON | Flags.EAGER, "gazinta", "another");
 
     expect(injectableMetadata.hasMetadataAssigned(MyConstructor)).toStrictEqual(true);
     expect(injectableMetadata.findOrAddMetadataFor(MyConstructor)).toEqual({
       scope: Scope.SINGLETON,
+      flags: 0,
       eager: true,
       numberOfUserSuppliedArgs: 0,
       injectedParams: ["gazinta", "another"]
@@ -419,6 +431,7 @@ describe("injector", () => {
     expect(injectableMetadata.hasMetadataAssigned(MyConstructor)).toStrictEqual(true);
     expect(injectableMetadata.findOrAddMetadataFor(MyConstructor)).toEqual({
       scope: Scope.PROTOTYPE,
+      flags: 0,
       eager: false,
       numberOfUserSuppliedArgs: 0,
       injectedParams: []
@@ -451,7 +464,7 @@ describe("injector", () => {
 
     // EXPECT: injector will throw if any injectedParams contain non-strings
     expect(() => {
-      injector.annotateConstructor(MyConstructor2, injector.SINGLETON_SCOPE, "okay1", nonStringValue);
+      injector.annotateConstructor(MyConstructor2, Scope.SINGLETON, "okay1", nonStringValue);
     }).toThrow(/Only strings may be passed for injectedParams/); // , "should throw when non-strings appear for injectedParams");
 
     // GIVEN: a constructor with 3 args
@@ -464,17 +477,17 @@ describe("injector", () => {
 
     // EXPECT: injector will throw if any injectedParams contain non-strings
     expect(() => {
-      injector.annotateConstructor(MyConstructor3, injector.SINGLETON_SCOPE, 0, "okay1", "okay2", nonStringValue);
+      injector.annotateConstructor(MyConstructor3, Scope.SINGLETON, 0, "okay1", "okay2", nonStringValue);
     }).toThrow(/Only strings may be passed for injectedParams/); // , "should throw when non-strings appear for injectedParams");
   });
 
   test.each`
     flags
     ${0}
-    ${injector.SINGLETON_SCOPE | injector.PROTOTYPE_SCOPE}
-    ${injector.APPLICATION_SCOPE | injector.PROTOTYPE_SCOPE}
-    ${injector.SINGLETON_SCOPE | injector.APPLICATION_SCOPE}
-    ${injector.SINGLETON_SCOPE | injector.APPLICATION_SCOPE | injector.PROTOTYPE_SCOPE}
+    ${Scope.SINGLETON | Scope.PROTOTYPE}
+    ${Scope.APPLICATION | Scope.PROTOTYPE}
+    ${Scope.SINGLETON | Scope.APPLICATION}
+    ${Scope.SINGLETON | Scope.APPLICATION | Scope.PROTOTYPE}
   `('[annotateConstructor] will fail if a scope is not set or if more than one scope is set: $flags', ({ flags }) => {
     function MyConstructor () {
     }
@@ -486,9 +499,9 @@ describe("injector", () => {
   });
 
   test.each`
-    scopeFlag                     | scope
-    ${injector.SINGLETON_SCOPE}   | ${Scope.SINGLETON}
-    ${injector.APPLICATION_SCOPE} | ${Scope.APPLICATION}
+    scopeFlag            | scope
+    ${Scope.SINGLETON}   | ${Scope.SINGLETON}
+    ${Scope.APPLICATION} | ${Scope.APPLICATION}
   `("[annotateConstructor] will allow eager to be set to true only on SINGLETON or APPLICATION", ({ scopeFlag, scope }) => {
     function MyConstructor () {
     }
@@ -496,13 +509,14 @@ describe("injector", () => {
     MyConstructor.prototype.constructor = MyConstructor;
 
     expect(() => {
-      injector.annotateConstructor(MyConstructor, scopeFlag | injector.EAGER_FLAG);
+      injector.annotateConstructor(MyConstructor, scopeFlag | Flags.EAGER);
     }).not.toThrow(); // , "The annotation with eager flag set should succeed");
 
     // THEN ctor has expected metadata annotations
     expect(injectableMetadata.hasMetadataAssigned(MyConstructor)).toStrictEqual(true);
     expect(injectableMetadata.findOrAddMetadataFor(MyConstructor)).toEqual({
       scope,
+      flags: 0,
       eager: true,
       numberOfUserSuppliedArgs: 0,
       injectedParams: []
@@ -515,7 +529,7 @@ describe("injector", () => {
     MyConstructor.prototype.constructor = MyConstructor;
 
     expect(() => {
-      injector.annotateConstructor(MyConstructor, injector.PROTOTYPE_SCOPE | injector.EAGER_FLAG);
+      injector.annotateConstructor(MyConstructor, Scope.PROTOTYPE | Flags.EAGER);
     }).toThrow(/Eager flag/); // , "Eager flag is not supported with the PROTOTYPE scope");
   });
 
@@ -525,7 +539,7 @@ describe("injector", () => {
     MyConstructor.prototype.constructor = MyConstructor;
 
     expect(() => {
-      injector.annotateConstructor(MyConstructor, injector.APPLICATION_SCOPE | injector.EAGER_FLAG | 4096);
+      injector.annotateConstructor(MyConstructor, Scope.APPLICATION | Flags.EAGER | 4096);
     }).toThrow(/Unknown flags/); // , "Will throw if unknown flags are detected");
   });
 
@@ -590,7 +604,7 @@ describe("injector", () => {
     }
     MyConstructor.prototype.constructor = MyConstructor;
 
-    injector.annotateConstructor(MyConstructor, injector.PROTOTYPE_SCOPE, "anObject");
+    injector.annotateConstructor(MyConstructor, Scope.PROTOTYPE, "anObject");
 
     moduleGroup.register("myConstructedObject", MyConstructor);
 

@@ -1,17 +1,18 @@
 /* eslint-disable prefer-rest-params,no-bitwise,max-classes-per-file */
 // noinspection JSCommentMatchesSignature,JSBitwiseOperatorUsage
 
-const isString = require("lodash.isstring");
-const isFunction = require("lodash.isfunction");
-const isNumber = require("lodash.isnumber");
-const map = require("lodash.map");
-const Scope = require("./Scope");
-const InjectableType = require("./InjectableType");
-const ModuleGroup = require("./ModuleGroup");
-const Provider = require("./Provider");
-const injectableMetadata = require("./injectableMetadata");
+const isString = require('lodash.isstring');
+const isFunction = require('lodash.isfunction');
+const isNumber = require('lodash.isnumber');
+const map = require('lodash.map');
+const Scope = require('./Scope');
+const Flags = require('./Flags');
+const InjectableType = require('./InjectableType');
+const ModuleGroup = require('./ModuleGroup');
+const Provider = require('./Provider');
+const injectableMetadata = require('./injectableMetadata');
 const InjectorUtils = require('./InjectorUtils');
-const DependencyGraph = require('./DependencyGraph');
+const DependencyGraph = require('./dependencies/DependencyGraph');
 
 /**
  * J'suice Dependency Injector
@@ -24,6 +25,7 @@ class Injector {
      * @name Injector#id
      * @type {number}
      * @package
+     * @ignore
      */
     self.id = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
 
@@ -31,6 +33,7 @@ class Injector {
      * @name Injector#scopes
      * @type {Object.<Scope, Object<string, *>>}
      * @package
+     * @ignore
      */
     self.scopes = {};
     self.scopes[Scope.SINGLETON] = {};
@@ -40,6 +43,7 @@ class Injector {
      * @name Injector#moduleGroups
      * @type {Array.<ModuleGroup>}
      * @package
+     * @ignore
      */
     self.moduleGroups = [];
 
@@ -47,6 +51,7 @@ class Injector {
      * @name Injector#nameStack
      * @type {Array.<String>}
      * @package
+     * @ignore
      */
     self.nameStack = [];
 
@@ -54,6 +59,7 @@ class Injector {
      * @name Injector#scopeStack
      * @type {Array.<Scope>}
      * @package
+     * @ignore
      */
     self.scopeStack = [];
 
@@ -61,6 +67,7 @@ class Injector {
      * @name Injector#dependencyGraph
      * @type {DependencyGraph}
      * @package
+     * @ignore
      */
     self.dependencyGraph = new DependencyGraph();
   }
@@ -70,11 +77,16 @@ class Injector {
    */
 
   /**
-   * Define a new module group by name and add it to the Injector.
+   * Define a new module group by name and add it to the Injector.  Only after modules have been added to a module group
+   * can they be instantiated by the Injector.
+   *
+   * <p>Module groups endow each of their modules with a unique name and creates a container called an Injectable that
+   * the Injector uses to interact with the module.  All members of a module group can be instantiated at one time via
+   * {@link Injector#getModuleGroupInstances}.
    *
    * @param {String} name name of the module group being registered.  name must be unique
    * @param {...(String|Subject)} moduleDeclarations variable arguments containing alternating values of type String
-   * and {@link Subject}.  Each String is the name that an Injectable Module will be identified by in the Injector.
+   * and {@link Subject}.  Each String is the name that the injectable module will be identified by in the Injector.
    * Each {@link Subject} is used by Injector to instantiate the named Injectable Module.  {@link Subject Subjects} can
    * be one of the following types:
    * <ul>
@@ -166,13 +178,13 @@ class Injector {
    * <ul>
    *   <li><code>Number flags</code> - integer containing flag constants that describe
    *   what the scope and configuration flags should be for the constructor.  Valid flag constants are
-   *   {@link Injector#APPLICATION_SCOPE}, {@link Injector#SINGLETON_SCOPE}, {@link Injector#PROTOTYPE_SCOPE},
-   *   {@link Injector#EAGER_FLAG} and {@link Injector#OUTER_FLAG}.  Use bitwise-OR or the plus operator to union
+   *   {@link Injector#Scope.APPLICATION}, {@link Injector#Scope.SINGLETON}, {@link Injector#Scope.PROTOTYPE},
+   *   {@link Injector#Flags.EAGER} and {@link Injector#Flags.BOUNDARY}.  Use bitwise-OR or the plus operator to union
    *   flag constants together into one flags value.</li>
    *   <li><code>Number numberOfUserSuppliedArgs</code> - positive integer describing how many extra parameters will the
    *   user pass to the constructor in addition to the ones supplied by the injector.  numberOfUserSuppliedArgs defaults
    *   to 0 if not specified.  It is an error for numberOfUserSuppliedArgs to be > 0 for scope flags other than
-   *   {@link Injector#PROTOTYPE_SCOPE}.</li>
+   *   {@link Injector#Scope.PROTOTYPE}.</li>
    *   <li><code>String... injectedParams</code> - names of modules that need to be instantiated and passed as parameters
    *   to the ctor at time of instantiation.</li>
    * </ul>
@@ -199,7 +211,8 @@ class Injector {
       injectedParams: (argList.length > injectedParamsStartIndex) ? argList.slice(injectedParamsStartIndex) : [],
       numberOfUserSuppliedArgs: (isUserSuppliedArgsCountSpecified ? argList[2] : 0),
       eager: false,
-      scope: Scope.PROTOTYPE
+      scope: Scope.PROTOTYPE,
+      flags: 0
     };
 
     for (let i = 0, ii = metaObj.injectedParams.length; i < ii; i += 1) {
@@ -217,44 +230,43 @@ class Injector {
           ctor.length} params. ctor: ${InjectorUtils.getFunctionSignature(ctor)}`);
     }
 
-    let flags = isFlagsSupplied ? argList[1] : Injector.prototype.PROTOTYPE_SCOPE;
+    let flags = isFlagsSupplied ? argList[1] : Scope.PROTOTYPE;
 
-    switch (flags & (Injector.prototype.SINGLETON_SCOPE | Injector.prototype.APPLICATION_SCOPE |
-        Injector.prototype.PROTOTYPE_SCOPE)) {
-      case Injector.prototype.PROTOTYPE_SCOPE:
+    switch (flags & (Scope.SINGLETON | Scope.APPLICATION | Scope.PROTOTYPE)) {
+      case Scope.PROTOTYPE:
         metaObj.scope = Scope.PROTOTYPE;
 
-        flags -= Injector.prototype.PROTOTYPE_SCOPE;
+        flags -= Scope.PROTOTYPE;
 
         break;
 
-      case Injector.prototype.SINGLETON_SCOPE:
+      case Scope.SINGLETON:
         if (isUserSuppliedArgsCountSpecified && metaObj.numberOfUserSuppliedArgs) {
           throw new Error("Assisted injection is not supported with application scope");
         }
 
         metaObj.scope = Scope.SINGLETON;
 
-        flags -= Injector.prototype.SINGLETON_SCOPE;
+        flags -= Scope.SINGLETON;
 
-        if ((flags & Injector.prototype.EAGER_FLAG) === Injector.prototype.EAGER_FLAG) {
-          flags -= Injector.prototype.EAGER_FLAG;
+        if ((flags & Flags.EAGER) === Flags.EAGER) {
+          flags -= Flags.EAGER;
 
           metaObj.eager = true;
         }
         break;
 
-      case Injector.prototype.APPLICATION_SCOPE:
+      case Scope.APPLICATION:
         if (isUserSuppliedArgsCountSpecified && metaObj.numberOfUserSuppliedArgs) {
           throw new Error("Assisted injection is not supported with application scope");
         }
 
         metaObj.scope = Scope.APPLICATION;
 
-        flags -= Injector.prototype.APPLICATION_SCOPE;
+        flags -= Scope.APPLICATION;
 
-        if ((flags & Injector.prototype.EAGER_FLAG) === Injector.prototype.EAGER_FLAG) {
-          flags -= Injector.prototype.EAGER_FLAG;
+        if ((flags & Flags.EAGER) === Flags.EAGER) {
+          flags -= Flags.EAGER;
 
           metaObj.eager = true;
         }
@@ -264,13 +276,15 @@ class Injector {
         throw new Error("Exactly one scope flag was expected");
     }
 
-    if ((flags & Injector.prototype.EAGER_FLAG)) {
+    if ((flags & Flags.EAGER)) {
       throw new Error("Eager flag is only permitted on the SINGLETON and APPLICATION scopes");
     }
 
-    if (flags) {
+    if (flags - Flags.BOUNDARY > 0) {
       throw new Error("Unknown flags");
     }
+
+    metaObj.flags = flags;
 
     // copy metaObj properties into the metadata object for the ctor
     Object.assign(injectableMetadata.findOrAddMetadataFor(ctor), metaObj);
@@ -322,7 +336,8 @@ class Injector {
       injectedParams: dependenciesList,
       numberOfUserSuppliedArgs: numOfUserSuppliedArgs,
       eager: false,
-      scope: Scope.PROTOTYPE
+      scope: Scope.PROTOTYPE,
+      flags: 0
     });
 
     return provider;
@@ -349,6 +364,44 @@ class Injector {
    */
 
   /**
+   * @param {String} name name of injectable
+   * @returns {(Injectable|null)} injectable if found, otherwise null
+   * @protected
+   */
+  findInjectableByName(name) {
+    for (let i = 0, ii = this.moduleGroups.length; i < ii; i += 1) {
+      const injectable = this.moduleGroups[i].getInjectable(name);
+
+      if (injectable) {
+        return injectable;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * @param {function(injectable: Injectable): boolean} booleanExpr
+   * @returns {Array<Injectable>}
+   */
+  injectableSearch(booleanExpr) {
+    const resultSet = [];
+
+    for (let i = 0, ii = this.moduleGroups.length; i < ii; i += 1) {
+      const { injectables } = this.moduleGroups[i];
+      for (let j = 0, jj = injectables.length; j < jj; j += 1) {
+        const injectable = injectables[j];
+
+        if (booleanExpr(injectable)) {
+          resultSet.push(injectable);
+        }
+      }
+    }
+
+    return resultSet;
+  }
+
+  /**
    * Get instances of named Injectables hosted for a module group by module group name.
    *
    * @param {String} moduleGroupName
@@ -361,7 +414,7 @@ class Injector {
     }
 
     const self = this;
-        const moduleGroup = self.findModuleGroup(moduleGroupName);
+    const moduleGroup = self.findModuleGroup(moduleGroupName);
 
     if (!moduleGroup) {
       throw new Error(`getModuleGroupInstances: ModuleGroup ${moduleGroupName} not found`);
@@ -383,6 +436,7 @@ class Injector {
    * @param {Array.<*>} assistedInjectionParams additional user-supplied parameters that will be passed to
    * top-level module factory injectables during recursion, otherwise empty array.
    * @returns {Object}
+   * @throws {Error} when named injectable is not found
    */
   getInstanceRecursion(name, nameHistory, scopeHistory, assistedInjectionParams) {
     if (nameHistory.indexOf(name) !== -1) {
@@ -391,30 +445,36 @@ class Injector {
     }
 
     const self = this;
-
-    for (let i = 0, ii = self.moduleGroups.length; i < ii; i += 1) {
-      const injectable = self.moduleGroups[i].getInjectable(name);
-
-      if (injectable) {
-        if (scopeHistory.length && scopeHistory[scopeHistory.length - 1] < injectable.scope) {
-          const previousName = nameHistory[nameHistory.length - 1];
-          throw new Error(`Cannot inject ${name} into ${previousName}, ${name} has a wider scope.`);
-        }
-
-        return self.getInstanceForInjectable(injectable, nameHistory, scopeHistory, assistedInjectionParams);
+    const injectable = self.findInjectableByName(name);
+    if (injectable) {
+      if (scopeHistory.length && scopeHistory[scopeHistory.length - 1] < injectable.scope) {
+        const previousName = nameHistory[nameHistory.length - 1];
+        throw new Error(`Cannot inject ${name} into ${previousName}, ${name} has a wider scope.`);
       }
+
+      return self.getInstanceForInjectable(injectable, nameHistory, scopeHistory, assistedInjectionParams);
     }
 
     const additionalInfo = self.moduleGroups.length
-        ? (`module groups currently registered: ${  map(self.moduleGroups, (moduleGroup) => moduleGroup.name)}`)
+        ? `module groups currently registered: ${map(self.moduleGroups, (moduleGroup) => moduleGroup.name)}`
         : (`${"no module groups were found.  Are you calling a different Injector instance than the one you expected?" +
-            "  Current injector.id = "}${  self.id}`);
+            "  Current injector.id = "}${self.id}`);
 
     throw new Error(`Did not find any injectable for: ${name}; ${additionalInfo}`);
   }
 
   /**
+   * Call user-supplied callback that can Extend the injector and its class object with additional functionality.
+   *
+   * @param {function(clazz: typeof Injector, injectableMetadata: InjectableMetadata, dependencyGraph: DependencyGraph)} extendFtn
+   */
+  extend(extendFtn) {
+    extendFtn(Injector, injectableMetadata, this.dependencyGraph);
+  }
+
+  /**
    * Fail if there are assistedInjectionParams passed to scopes/types that cannot support them
+   * @private
    */
   static assertAssistedInjectionParamsIsEmpty(scope, type, assistedInjectionParams) {
     if (assistedInjectionParams.length) {
@@ -428,13 +488,14 @@ class Injector {
   /**
    * Gets or instantiates an object for an Injectable.
    *
-   * @package
    * @param {Injectable} injectable
    * @param {Array.<String>} nameHistory stack of injectable names that are used to prevent circular dependencies
    * @param {Array.<Scope>} scopeHistory stack of scopes that match up with names
    * @param {Array.<*>} assistedInjectionParams additional user-supplied parameters that will be passed to
    * top-level module factory injectables during recursion, otherwise empty array.
    * @returns {*}
+   * @protected
+   * @ignore
    */
   getInstanceForInjectable(injectable, nameHistory, scopeHistory, assistedInjectionParams) {
     const self = this;
@@ -500,6 +561,7 @@ class Injector {
 
   /**
    * find existing ModuleGroup by name.
+   * @package
    */
   findModuleGroup(name) {
     const self = this;
@@ -575,65 +637,43 @@ class Injector {
 }
 
 /**
- * @name Injector#SINGLETON_SCOPE
- * @type {number}
+ * InjectableType enum
+ * @name Injector#InjectableType
+ * @type {typeof InjectableType}
  * @const
  */
-Object.defineProperty(Injector.prototype, 'SINGLETON_SCOPE', {
+Object.defineProperty(Injector.prototype, 'InjectableType', {
   configurable: false,
   enumerable: true,
   writable: false,
-  value: 1
+  value: InjectableType
 });
 
 /**
- * @name Injector#APPLICATION_SCOPE
- * @type {number}
+ * Scope enum
+ * @name Injector#Scope
+ * @type {typeof Scope}
  * @const
  */
-Object.defineProperty(Injector.prototype, 'APPLICATION_SCOPE', {
+Object.defineProperty(Injector.prototype, 'Scope', {
   configurable: false,
   enumerable: true,
   writable: false,
-  value: 2
+  value: Scope
 });
 
 /**
- * @name Injector#PROTOTYPE_SCOPE
- * @type {number}
+ * Flags enum
+ * @name Injector#Flags
+ * @type {typeof Flags}
  * @const
  */
-Object.defineProperty(Injector.prototype, 'PROTOTYPE_SCOPE', {
+Object.defineProperty(Injector.prototype, 'Flags', {
   configurable: false,
   enumerable: true,
   writable: false,
-  value: 4
+  value: Flags
 });
 
-/**
- * @name Injector#OUTER_FLAG
- * @type {number}
- * @const
- */
-Object.defineProperty(Injector.prototype, 'OUTER_FLAG', {
-  configurable: false,
-  enumerable: true,
-  writable: false,
-  value: 64
-});
 
-/**
- * The eager flag indicates that
- * @name Injector#EAGER_FLAG
- * @type {number}
- * @const
- */
-Object.defineProperty(Injector.prototype, 'EAGER_FLAG', {
-  configurable: false,
-  enumerable: true,
-  writable: false,
-  value: 128
-});
-
-// global singleton
-module.exports = new Injector();
+module.exports = Injector;

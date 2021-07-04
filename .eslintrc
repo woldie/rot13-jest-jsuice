@@ -44,6 +44,7 @@
       {
         "devDependencies": [
           "**/*.test.js",
+          "**/sociable-jsuice/**",
           "**/testUtilities/**",
           "**/*.integration.js",
           "**/setup.js",

@@ -96,7 +96,7 @@ describe('ModuleGroup', () => {
       .toHaveBeenCalledTimes(injectedParamNames.length);
     injectedParamNames.forEach((paramName) => {
       expect(dependencyGraph.associateConstructionParameterWithInjectable)
-      .toHaveBeenCalledWith(paramName, classInjectable)
+      .toHaveBeenCalledWith(classInjectable, paramName)
     });
   });
 

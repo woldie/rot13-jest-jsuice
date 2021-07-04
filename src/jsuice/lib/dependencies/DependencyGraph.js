@@ -1,5 +1,5 @@
 /* eslint-disable no-underscore-dangle,no-unused-vars */
-const Dagoba = require('../dagoba/dagoba');
+const Dagoba = require('./dagoba/dagoba');
 const VertexType = require('./VertexType');
 const EdgeLabel = require('./EdgeLabel');
 
@@ -139,11 +139,11 @@ class DependencyGraph {
   }
 
   /**
-   * @param {String} paramName
    * @param {Injectable} injectable
+   * @param {String} paramName
    * @returns {InjectableParamAssoc}
    */
-  associateConstructionParameterWithInjectable(paramName, injectable) {
+  associateConstructionParameterWithInjectable(injectable, paramName) {
     const paramVertex = this.findOrCreateInjectableVertex(paramName, null);
     const injectableVertex = this.findOrCreateInjectableVertex(injectable.name, injectable);
 
@@ -158,6 +158,59 @@ class DependencyGraph {
       parameter: paramVertex,
       edge: associationEdge
     };
+  }
+
+  /**
+   * Find all Injectables that depend on whichInjectable and Injectables that depend on those Injectables and so on...
+   *
+   * <p>whichInjectable and all its dependent ancestors must a valid injectable that is already in the graph when this
+   * method is called.
+   *
+   * @param {String} whichInjectable Name of injectable for whom we will search for all dependent ancestors
+   * @returns {Array.<InjectableVertex>} vertexes of Injectables who depend on whichInjectable at time of instantiation
+   * as a construction arg.  If this list is empty, then whichInjectable is a root injectable and is not a dependency of
+   * other Injectables
+   * @package
+   */
+  getAllDependentAncestors(whichInjectable) {
+    /** @type {Array.<InjectableVertex>} */
+    const ancestors = [];
+
+    /** @type {InjectableVertex} */
+    const injectableVertex = this.findOrCreateVertexBySearchQuery({
+      type: VertexType.INJECTABLE,
+      name: whichInjectable
+    });
+
+    this.recurseAllDependentAncestors(ancestors, injectableVertex);
+
+    return ancestors;
+  }
+
+  /**
+   * @param {Array.<InjectableVertex>} ancestors
+   * @param {InjectableVertex} vertex
+   * @private
+   */
+  recurseAllDependentAncestors(ancestors, vertex) {
+    if (!vertex.injectable) {
+      throw new Error(`During dependent ancestor search, a required injectable named ${
+        vertex.name} was not found in any module group.  See Injector#moduleGroup for more information.`);
+    }
+
+    // Find all the dependent parents that we've never seen before in the ancestors list
+    const unvisitedDependentParentVertices = this.db.v(vertex._id)
+      .in(EdgeLabel.INJECTABLE_PARAM)
+      .unique()
+      .filter((vert) =>
+        ancestors.indexOf(vert) < 0
+      )
+      .run();
+
+    unvisitedDependentParentVertices.forEach(dependentParentVertex => {
+      ancestors.push(dependentParentVertex);
+      this.recurseAllDependentAncestors(ancestors, dependentParentVertex);
+    });
   }
 }
 

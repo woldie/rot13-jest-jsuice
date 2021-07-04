@@ -4,6 +4,10 @@ const InjectorUtils = require('./InjectorUtils');
 const Provider = require('./Provider');
 
 /**
+ * @typedef {{scope: Scope, eager: Boolean, flags: Number, injectedParams: Array.<String>, numberOfUserSuppliedArgs: Number=}} InjectableMetadata.Collection
+ */
+
+/**
  * @package
  */
 class InjectableMetadata {
@@ -39,7 +43,7 @@ class InjectableMetadata {
   /**
    * Finds or creates weakly-reachable metadata for object.
    * @param {Object|Function} object
-   * @returns {*}
+   * @returns {InjectableMetadata.Collection}
    */
   findOrAddMetadataFor(object) {
     let meta = this.metaMap.get(object);

@@ -62,7 +62,7 @@ class ModuleGroup {
     if (this.injectableMetadata.hasMetadataAssigned(subject)) {
       const metadata = this.injectableMetadata.findOrAddMetadataFor(subject);
       (metadata.injectedParams || []).forEach((paramName) => {
-        this.dependencyGraph.associateConstructionParameterWithInjectable(paramName, injectable);
+        this.dependencyGraph.associateConstructionParameterWithInjectable(injectable, paramName);
       });
     }
 
