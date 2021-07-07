@@ -1,47 +1,110 @@
-/* eslint-disable no-bitwise,prefer-rest-params,no-param-reassign */
+/* eslint-disable no-bitwise,prefer-rest-params,no-param-reassign,prefer-spread,no-underscore-dangle */
 // noinspection JSBitwiseOperatorUsage
 
 const td = require('testdouble');
 const forEach = require('lodash.foreach');
-const flatten = require('lodash.flatten');
+const reduce = require('lodash.reduce');
 const union = require('lodash.union');
 const keys = require('lodash.keys');
+const isFunction = require('lodash.isfunction');
+const isUndefined = require('lodash.isundefined');
+const isArray = require('lodash.isarray');
+const map = require('lodash.map');
+const has = require('lodash.has');
+const classInfo = require('class-info');
 const injector = require('../jsuice');
 const Scope = require('../jsuice/lib/Scope');
 const InjectableType = require('../jsuice/lib/InjectableType');
 
 /**
- * @typedef {{ MOCK: Array.<String>=, REAL: Array.<String>=, SUT: String }} CollaboratorConfig
+ * @typedef {(String | [ String, ?function(partialMock: td.DoubledObject<any>) ])} PartialMockConfig
+ */
+
+/**
+ * @typedef {{ MOCK: Array.<String>=, PARTIAL_MOCK: Array.<PartialMockConfig>=, REAL: Array.<String>=, SUT: String }} CollaboratorConfig
  */
 
 let collaboratorSetupCalled = false;
-let sociableInjector = null;
 
-injector.extend((Injector, injectableMetadata, dependencyGraph) => {
+const sociableInjector = injector.extend((Injector, injectableMetadata, dependencyGraph) => {
   const realGetInstanceForInjectable = Injector.prototype.getInstanceForInjectable;
 
-  let shadowedInjectablesMocked = {};
-  let shadowedInjectablesReal = {};
+  let shadowedMocked = {};
+  let shadowedPartialMocked = {};
+  let shadowedReal = {};
+  let partialMockFactories = {};
 
-  sociableInjector = Object.assign(Injector.prototype, {
+  /**
+   *
+   * @param {Object} instanceTracker
+   * @param {Injectable} injectable
+   * @returns {Array}
+   */
+  function findOrCreateInstanceContainerForInjectable(instanceTracker, injectable) {
+    const container = (instanceTracker[injectable.name] === true) ? [] : instanceTracker[injectable.name];
+
+    instanceTracker[injectable.name] = container;
+
+    return container;
+  }
+
+  /**
+   *
+   * @param injectable injectable
+   * @param container instance container for injectable
+   * @returns {boolean} is the 0th item in container a SINGLETON-scoped instance of injectable
+   */
+  function isSingletonAllocatedInInjectableContainer(injectable, container) {
+    return injectable.scope === Scope.SINGLETON && container.length > 0;
+  }
+
+  function isSpyClass(clazz) {
+    return clazz.__isSpy || false;
+  }
+
+  function spyClass(clazz) {
+    const typeInfo = classInfo(clazz);
+    if (typeInfo.parentClass) {
+      spyClass(typeInfo.parentClass);
+    }
+
+    forEach(typeInfo.instanceMethods, instanceMethodName => {
+      const realMethod = clazz.prototype[instanceMethodName];
+      const spyMethod = td.replace(clazz.prototype, instanceMethodName, td.function(instanceMethodName));
+
+      td.when(spyMethod(), {ignoreExtraArgs: true})
+        .thenDo(() => realMethod.apply(this, Array.from(arguments)));
+    });
+
+    forEach(typeInfo.staticMethods, staticMethodName => {
+      const realMethod = clazz[staticMethodName];
+      const spyMethod = td.replace(clazz, staticMethodName, td.function(staticMethodName));
+
+      td.when(spyMethod(), {ignoreExtraArgs: true})
+        .thenDo(() => realMethod.apply(clazz, Array.from(arguments)));
+    });
+
+    clazz.__isSpy = true;
+
+    return clazz;
+  }
+
+  Object.assign(Injector.prototype, {
     getInstanceForInjectable(injectable) {
       if (!collaboratorSetupCalled) {
         throw new Error('Call injector.collaboratorSetup before trying to construct instances with the injector');
       }
 
-      if (shadowedInjectablesMocked[injectable.name]) {
-        const container = (shadowedInjectablesMocked[injectable.name] === true) ?
-          [] :
-          shadowedInjectablesMocked[injectable.name];
-
-        shadowedInjectablesMocked[injectable.name] = container;
-        if (injectable.scope === Scope.SINGLETON && container.length > 0) {
+      if (has(shadowedMocked, injectable.name)) {
+        const container = findOrCreateInstanceContainerForInjectable(shadowedMocked, injectable);
+        if (isSingletonAllocatedInInjectableContainer(injectable, container)) {
           return container[0];
         }
 
         const metaObj = injectableMetadata.findOrAddMetadataFor(injectable.subject);
         if (metaObj.numberOfUserSuppliedArgs > 0) {
-          throw new Error("Assisted injection not yet supported in sociable-jsuice tests");
+          throw new Error(`Assisted injection not yet supported in sociable-jsuice tests, ${
+            injectable.name} was the requested injectable.`);
         }
 
         const instance = injectable.type === InjectableType.INJECTED_CONSTRUCTOR ?
@@ -51,27 +114,53 @@ injector.extend((Injector, injectableMetadata, dependencyGraph) => {
         return instance;
       }
 
-      if (shadowedInjectablesReal[injectable.name]) {
-        const container = (shadowedInjectablesReal[injectable.name] === true) ?
-          [] :
-          shadowedInjectablesReal[injectable.name];
+      if (has(shadowedPartialMocked, injectable.name)) {
+        if (injectable.type !== InjectableType.INJECTED_CONSTRUCTOR) {
+          // TODO support other injectable types for partial mocks
+          throw new Error(`Partial mocks currently only supported for constructor functions in sociable-jsuice tests, ${
+            injectable.name} was the requested injectable.`);
+        }
 
-        shadowedInjectablesReal[injectable.name] = container;
-        if (injectable.scope === Scope.SINGLETON && container.length > 0) {
+        const container = findOrCreateInstanceContainerForInjectable(shadowedPartialMocked, injectable);
+        if (isSingletonAllocatedInInjectableContainer(injectable, container)) {
           return container[0];
         }
 
-        const instance = realGetInstanceForInjectable.apply(injector, Array.from(arguments));
+        const metaObj = injectableMetadata.findOrAddMetadataFor(injectable.subject);
+        if (metaObj.numberOfUserSuppliedArgs > 0) {
+          throw new Error(`Assisted injection not yet supported in sociable-jsuice tests, ${
+            injectable.name} was the requested injectable.`);
+        }
+
+        if (!isSpyClass(injectable.subject)) {
+          td.replace(injectable, 'subject', spyClass(injectable.subject));
+        }
+
+        // call through to the real injector as if subject on injectable were a normal class where all the members are
+        // now spies
+        const instance = realGetInstanceForInjectable.call(injector, injectable);
         container.push(instance);
         return instance;
       }
 
-      return realGetInstanceForInjectable.apply(injector, Array.from(arguments));
+      if (has(shadowedReal, injectable.name)) {
+        const container = findOrCreateInstanceContainerForInjectable(shadowedReal, injectable);
+        if (isSingletonAllocatedInInjectableContainer(injectable, container)) {
+          return container[0];
+        }
+
+        const instance = realGetInstanceForInjectable.call(injector, injectable);
+        container.push(instance);
+        return instance;
+      }
+
+      throw new Error(`sociable-jsuice got request for an injectable, ${
+        injectable.name}, that was not listed in injector.collaboratorSetup nor a dependency thereof.`);
     },
 
     /**
      * This function is our chance to discover what objects need to be shadowed for the current test.
-     *
+     * object
      * @name Injector#collaboratorSetup
      * @param {CollaboratorConfig} config
      * @returns {Object<String, *>}
@@ -80,51 +169,77 @@ injector.extend((Injector, injectableMetadata, dependencyGraph) => {
     collaboratorSetup(config) {
       collaboratorSetupCalled = true;
 
-      // TODO validate collaboratorConfig for business rules/gigo (names shouldn't appear in multiple places, etc)
       config = {
         SUT: config.SUT,
         REAL: config.REAL || [],
-        MOCK: config.MOCK || []
+        MOCK: config.MOCK || [],
+        PARTIAL_MOCK: config.PARTIAL_MOCK || []
       }
 
-      shadowedInjectablesMocked = {};
-      shadowedInjectablesReal = {};
+      // TODO validate collaboratorConfig for business rules/gigo (names shouldn't appear in multiple places, etc)
 
-      shadowedInjectablesReal[config.SUT] = true;
+      shadowedPartialMocked = {};
+      shadowedMocked = {};
+      shadowedReal = {};
+      partialMockFactories = {};
+
+      shadowedReal[config.SUT] = true;
       forEach(config.REAL, realCollab => {
-        shadowedInjectablesReal[realCollab] = true;
+        shadowedReal[realCollab] = true;
       });
       forEach(config.MOCK, mockCollab => {
-        shadowedInjectablesMocked[mockCollab] = true;
+        shadowedMocked[mockCollab] = true;
+      });
+      forEach(config.PARTIAL_MOCK, partialMockConfig => {
+        let partialMockCollab;
+        if (isArray(partialMockConfig)) {
+          const [ collaboratorName, partialMockFactoryFtn ] = partialMockConfig;
+
+          partialMockCollab = collaboratorName;
+          if (isFunction(partialMockFactoryFtn)) {
+            partialMockFactories[partialMockCollab] = partialMockFactoryFtn;
+          }
+        } else {
+          partialMockCollab = partialMockConfig;
+        }
+
+
+        shadowedPartialMocked[partialMockCollab] = true;
       });
 
-      // find all the Injectables marked as BOUNDARY objects not already added to REAL, and add them to MOCK
-      forEach(injector.injectableSearch(injectable => {
+      // Search all injectables and collect those marked as BOUNDARY injectables
+      const boundaryInjectableNames = map(injector.injectableSearch(injectable => {
         const metaObj = injectableMetadata.findOrAddMetadataFor(injectable.subject);
 
         return metaObj && metaObj.flags && (metaObj.flags & injector.Flags.BOUNDARY);
-      }), injectable => {
-        // if the injectable wasn't previously added to the real map, then add it to the mock map
-        if (shadowedInjectablesReal[injectable.name] !== true) {
-          shadowedInjectablesMocked[injectable.name] = true;
-        }
-      });
+      }), injectable => injectable.name);
 
-      // find all the dependent ancestors of MOCK not in shadowedInjectablesMocked and add them to the real map
-      forEach(union(keys(shadowedInjectablesMocked), keys(shadowedInjectablesReal)), name => {
+      // find all the dependent ancestors of all real and partially mocked injectables not already in lists.  Add
+      // boundary objects to the mocks list and everything else to the real list.
+      forEach(union(keys(shadowedReal), keys(shadowedPartialMocked)), name => {
         forEach(dependencyGraph.getAllDependentAncestors(name), dependentName => {
-          if (!(shadowedInjectablesMocked[dependentName] || shadowedInjectablesReal[dependentName])) {
-            shadowedInjectablesReal[dependentName] = true;
+          if (isUndefined(shadowedReal[dependentName]) && isUndefined(shadowedPartialMocked[dependentName]) &&
+            isUndefined(shadowedMocked[dependentName])) {
+            if (boundaryInjectableNames.indexOf(dependentName) <= 0) {
+              shadowedReal[dependentName] = true;
+            } else {
+              shadowedMocked[dependentName] = true;
+            }
           }
         });
       });
 
-      const collaborators = {};
-      forEach(flatten([config.SUT, config.REAL, config.MOCK]), collaboratorName => {
-        collaborators[collaboratorName] = injector.getInstance(collaboratorName);
-      });
+      // return the instantiation of all known singleton with their tree of dependencies
+      const collaboratorsAndDependencies = {};
+      reduce(union(keys(shadowedReal), keys(shadowedPartialMocked), keys(shadowedMocked)),
+        (accumulator, collaboratorName) => {
+          accumulator.collaboratorsAndDependencies[collaboratorName] = injector.getInstance(collaboratorName);
+        },
+        {
+          collaboratorsAndDependencies
+        });
 
-      return collaborators;
+      return collaboratorsAndDependencies;
     }
   });
 
@@ -133,11 +248,17 @@ injector.extend((Injector, injectableMetadata, dependencyGraph) => {
   });
 
   afterEach(() => {
-    shadowedInjectablesReal = {};
+    td.reset();
 
-    // TODO: reset mocks and put them into a pool rather than allowing them to garbage collect here
+    injector.clearScope(Scope.SINGLETON);
+    injector.clearScope(Scope.APPLICATION);
 
-    shadowedInjectablesMocked = {};
+    shadowedReal = {};
+    shadowedPartialMocked = {};
+
+    // TODO: reset mocks and put them into a pool rather than clearing the map and allowing them to garbage collect here
+
+    shadowedMocked = {};
   });
 });
 

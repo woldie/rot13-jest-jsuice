@@ -1,10 +1,13 @@
-/* eslint-disable prefer-rest-params,no-bitwise,max-classes-per-file */
+/* eslint-disable prefer-rest-params,no-bitwise,max-classes-per-file,no-param-reassign */
 // noinspection JSCommentMatchesSignature,JSBitwiseOperatorUsage
 
 const isString = require('lodash.isstring');
 const isFunction = require('lodash.isfunction');
 const isNumber = require('lodash.isnumber');
+const isUndefined = require('lodash.isundefined');
 const map = require('lodash.map');
+const forEach = require('lodash.foreach');
+const keys = require('lodash.keys');
 const Scope = require('./Scope');
 const Flags = require('./Flags');
 const InjectableType = require('./InjectableType');
@@ -422,7 +425,7 @@ class Injector {
 
     return map(moduleGroup.injectables, (injectable) => ({
       moduleName: injectable.name,
-      instance: self.getInstanceForInjectable(injectable, self.nameStack, self.scopeStack, [])
+      instance: self.getInstanceForInjectable(injectable)
     }));
   }
 
@@ -464,12 +467,16 @@ class Injector {
   }
 
   /**
-   * Call user-supplied callback that can Extend the injector and its class object with additional functionality.
+   * Call user-supplied callback that can extend the injector and its constructor/prototype with additional
+   * functionality.
    *
    * @param {function(clazz: typeof Injector, injectableMetadata: InjectableMetadata, dependencyGraph: DependencyGraph)} extendFtn
+   * @returns {Injector} this Injector, with extensions applied
    */
   extend(extendFtn) {
     extendFtn(Injector, injectableMetadata, this.dependencyGraph);
+
+    return this;
   }
 
   /**
@@ -489,9 +496,9 @@ class Injector {
    * Gets or instantiates an object for an Injectable.
    *
    * @param {Injectable} injectable
-   * @param {Array.<String>} nameHistory stack of injectable names that are used to prevent circular dependencies
-   * @param {Array.<Scope>} scopeHistory stack of scopes that match up with names
-   * @param {Array.<*>} assistedInjectionParams additional user-supplied parameters that will be passed to
+   * @param {Array.<String>=} nameHistory stack of injectable names that are used to prevent circular dependencies
+   * @param {Array.<Scope>=} scopeHistory stack of scopes that match up with names
+   * @param {Array.<*>=} assistedInjectionParams additional user-supplied parameters that will be passed to
    * top-level module factory injectables during recursion, otherwise empty array.
    * @returns {*}
    * @protected
@@ -499,7 +506,18 @@ class Injector {
    */
   getInstanceForInjectable(injectable, nameHistory, scopeHistory, assistedInjectionParams) {
     const self = this;
-        let instance; let singletonScope;
+    let instance;
+    let singletonScope;
+
+    if (isUndefined(nameHistory)) {
+      nameHistory = self.nameStack;
+    }
+    if (isUndefined(scopeHistory)) {
+      scopeHistory = self.scopeStack;
+    }
+    if (isUndefined(assistedInjectionParams)) {
+      assistedInjectionParams = [];
+    }
 
     Injector.assertAssistedInjectionParamsIsEmpty(injectable.scope, injectable.type, assistedInjectionParams);
 
@@ -605,7 +623,7 @@ class Injector {
    * @param {Scope} scope
    */
   clearScope(scope) {
-    Object.keys(Scope).forEach(scopeName => {
+    forEach(keys(Scope), scopeName => {
       if (Scope[scopeName] === scope) {
         this.scopes[scope] = {};
       }

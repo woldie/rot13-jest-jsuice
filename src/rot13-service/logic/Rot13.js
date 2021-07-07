@@ -1,6 +1,7 @@
+/* eslint-disable prefer-rest-params */
 const join = require('lodash.join');
 const map = require('lodash.map');
-const check = require('check-types');
+const { typeCheck } = require('type-check');
 const GraphemeSplitter = require('grapheme-splitter');
 const injector = require('../../jsuice');
 
@@ -38,7 +39,7 @@ class Rot13 {
    * @returns {String}
    */
   transform(input) {
-    check.string(input);
+    typeCheck('[String]', arguments);
 
     return join(map(splitOnGraphemes(input), grapheme => transformGrapheme(grapheme)), '');
   }
