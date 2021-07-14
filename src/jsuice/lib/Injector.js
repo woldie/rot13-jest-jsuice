@@ -76,7 +76,12 @@ class Injector {
   }
 
   /**
-   * @typedef {(Function|Object|Provider)} Subject
+   * Used to instantiate an injectable.  If Function, Subject is assumed to be a class constructor that can be used
+   * with the <code>new</code> keyword.  If Object, Subject is assumed to be a pre-existing, singleton object that can
+   * be returned as the injectable instance.  If Provider, Subject is assumed to be instantiatable by calling the
+   * Provider's object factory function.
+   *
+   * @typedef {(Object|Provider|Function)} Subject
    */
 
   /**
@@ -363,13 +368,16 @@ class Injector {
   }
 
   /**
-   * @typedef {{moduleName: String, instance: *}} ModuleInstance
+   * A tuple containing an injectable name and injectable instance
+   *
+   * @typedef {{injectableName: String, instance: *}} InjectableInstance
    */
 
   /**
    * @param {String} name name of injectable
    * @returns {(Injectable|null)} injectable if found, otherwise null
    * @protected
+   * @ignore
    */
   findInjectableByName(name) {
     for (let i = 0, ii = this.moduleGroups.length; i < ii; i += 1) {
@@ -384,8 +392,10 @@ class Injector {
   }
 
   /**
-   * @param {function(injectable: Injectable): boolean} booleanExpr
+   * @param {function(injectable:Injectable):boolean} booleanExpr
    * @returns {Array<Injectable>}
+   * @protected
+   * @ignore
    */
   injectableSearch(booleanExpr) {
     const resultSet = [];
@@ -408,7 +418,7 @@ class Injector {
    * Get instances of named Injectables hosted for a module group by module group name.
    *
    * @param {String} moduleGroupName
-   * @returns {Array.<ModuleInstance>} list of objects containing a single pair of injectable name -> instance of
+   * @returns {Array.<InjectableInstance>} list of tuples containing pairs of injectable name with an instance of the
    * named injectable
    */
   getModuleGroupInstances(moduleGroupName) {
@@ -424,7 +434,7 @@ class Injector {
     }
 
     return map(moduleGroup.injectables, (injectable) => ({
-      moduleName: injectable.name,
+      injectableName: injectable.name,
       instance: self.getInstanceForInjectable(injectable)
     }));
   }
@@ -467,11 +477,17 @@ class Injector {
   }
 
   /**
+   * @typedef {typeof Injector} InjectorClass
+   * @ignore
+   */
+
+  /**
    * Call user-supplied callback that can extend the injector and its constructor/prototype with additional
    * functionality.
    *
-   * @param {function(clazz: typeof Injector, injectableMetadata: InjectableMetadata, dependencyGraph: DependencyGraph)} extendFtn
+   * @param {function(clazz:InjectorClass,injectableMetadata:InjectableMetadata,dependencyGraph:DependencyGraph)} extendFtn
    * @returns {Injector} this Injector, with extensions applied
+   * @ignore
    */
   extend(extendFtn) {
     extendFtn(Injector, injectableMetadata, this.dependencyGraph);
@@ -580,6 +596,7 @@ class Injector {
   /**
    * find existing ModuleGroup by name.
    * @package
+   * @ignore
    */
   findModuleGroup(name) {
     const self = this;
@@ -599,6 +616,7 @@ class Injector {
    * old one.
    *
    * @package
+   * @ignore
    * @param {String} name
    * @return {ModuleGroup}
    */
@@ -620,6 +638,7 @@ class Injector {
    * Used in testing to reset Injector internals.  Do not call.
    *
    * @package
+   * @ignore
    * @param {Scope} scope
    */
   clearScope(scope) {
@@ -635,6 +654,7 @@ class Injector {
    * injected dependencies intended for the injectable.
    *
    * @package
+   * @ignore
    * @param {Injectable} injectable
    * @param {Array.<String>} nameHistory
    * @param {Array.<Scope>} scopeHistory

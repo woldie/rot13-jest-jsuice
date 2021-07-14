@@ -6,7 +6,7 @@ describe('Rot13', () => {
   /** @type {Rot13} */ let rot13;
 
   beforeEach(() => {
-    const collaborators = injector.collaboratorSetup({
+    const collaborators = injector.collaborators({
       SUT: 'rot13'
     });
 

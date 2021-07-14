@@ -4,6 +4,10 @@ const forEach = require('lodash.foreach');
  * @enum {string}
  * @readonly
  * @public
+ *
+ * @property {String} INJECTED_CONSTRUCTOR
+ * @property {String} OBJECT_INSTANCE
+ * @property {String} PROVIDER
  */
 const InjectableType = {};
 
@@ -21,21 +25,3 @@ forEach({
 });
 
 module.exports = InjectableType;
-
-/**
- * @name InjectableType.INJECTED_CONSTRUCTOR
- * @public
- * @const
- */
-
-/**
- * @name InjectableType.OBJECT_INSTANCE
- * @public
- * @const
- */
-
-/**
- * @name InjectableType.PROVIDER
- * @public
- * @const
- */

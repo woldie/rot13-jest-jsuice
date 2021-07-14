@@ -5,38 +5,47 @@ const EdgeLabel = require('./EdgeLabel');
 
 /**
  * @typedef {(Function|Object)} SubjectKey
+ * @ignore
  */
 
 /**
  * @typedef {{ name: String, type: VertexType, _id: *= }} GraphVertex
+ * @ignore
  */
 
 /**
  * @typedef {GraphVertex & { injectable: Injectable= }} InjectableVertex
+ * @ignore
  */
 
 /**
  * @typedef {GraphVertex & { }} ModuleGroupVertex
+ * @ignore
  */
 
 /**
  * @typedef {{ _out: *, _in: *, _label: String }} GraphEdge
+ * @ignore
  */
 
 /**
  * @typedef {{ moduleGroup: ModuleGroupVertex, injectable: InjectableVertex, edge: GraphEdge }} GroupInjectableAssoc
+ * @ignore
  */
 
 /**
  * @typedef {{ injectable: InjectableVertex, parameter: InjectableVertex, edge: GraphEdge }} InjectableParamAssoc
+ * @ignore
  */
 
 /**
  * @typedef {{ name: String, vertexId: number }} SubjectInfo
+ * @ignore
  */
 
 /**
- * @classDesc Dependency Graph that tracks interrlationships in J'Suice.
+ * @classDesc Dependency Graph that tracks interrelationships in J'Suice.
+ * @ignore
  */
 class DependencyGraph {
   constructor() {
@@ -161,20 +170,18 @@ class DependencyGraph {
   }
 
   /**
-   * Find all Injectables that depend on whichInjectable and Injectables that depend on those Injectables and so on...
+   * Find all Injectables that whichInjectable depends on and those Injectables' dependencies and so on...
    *
-   * <p>whichInjectable and all its dependent ancestors must a valid injectable that is already in the graph when this
-   * method is called.
+   * <p>whichInjectable and all its dependencies and descendants must a valid injectable that is already in the graph
+   * when this method is called.
    *
-   * @param {String} whichInjectable Name of injectable for whom we will search for all dependent ancestors
-   * @returns {Array.<InjectableVertex>} vertexes of Injectables who depend on whichInjectable at time of instantiation
-   * as a construction arg.  If this list is empty, then whichInjectable is a root injectable and is not a dependency of
-   * other Injectables
+   * @param {String} whichInjectable Name of injectable for whom we will search for all dependencies and descendants
+   * @returns {Array.<InjectableVertex>} vertexes of Injectables that are dependencies and descendants
    * @package
    */
-  getAllDependentAncestors(whichInjectable) {
+  getAllDependenciesAndDescendants(whichInjectable) {
     /** @type {Array.<InjectableVertex>} */
-    const ancestors = [];
+    const dependencies = [];
 
     /** @type {InjectableVertex} */
     const injectableVertex = this.findOrCreateVertexBySearchQuery({
@@ -182,34 +189,34 @@ class DependencyGraph {
       name: whichInjectable
     });
 
-    this.recurseAllDependentAncestors(ancestors, injectableVertex);
+    this.recurseAllDependenciesAndDescendants(dependencies, injectableVertex);
 
-    return ancestors;
+    return dependencies;
   }
 
   /**
-   * @param {Array.<InjectableVertex>} ancestors
+   * @param {Array.<InjectableVertex>} dependencies
    * @param {InjectableVertex} vertex
    * @private
    */
-  recurseAllDependentAncestors(ancestors, vertex) {
+  recurseAllDependenciesAndDescendants(dependencies, vertex) {
     if (!vertex.injectable) {
-      throw new Error(`During dependent ancestor search, a required injectable named ${
+      throw new Error(`During dependency search, a required injectable named ${
         vertex.name} was not found in any module group.  See Injector#moduleGroup for more information.`);
     }
 
-    // Find all the dependent parents that we've never seen before in the ancestors list
-    const unvisitedDependentParentVertices = this.db.v(vertex._id)
-      .in(EdgeLabel.INJECTABLE_PARAM)
+    // Find all the children that we've never seen before in the dependencies list
+    const unvisitedDependencyVertices = this.db.v(vertex._id)
+      .out(EdgeLabel.INJECTABLE_PARAM)
       .unique()
-      .filter((vert) =>
-        ancestors.indexOf(vert) < 0
+      .filter(vert =>
+        dependencies.indexOf(vert) < 0
       )
       .run();
 
-    unvisitedDependentParentVertices.forEach(dependentParentVertex => {
-      ancestors.push(dependentParentVertex);
-      this.recurseAllDependentAncestors(ancestors, dependentParentVertex);
+    unvisitedDependencyVertices.forEach(dependencyVertex => {
+      dependencies.push(dependencyVertex);
+      this.recurseAllDependenciesAndDescendants(dependencies, dependencyVertex);
     });
   }
 }

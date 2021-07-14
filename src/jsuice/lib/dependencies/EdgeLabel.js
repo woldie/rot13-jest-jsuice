@@ -1,6 +1,7 @@
 /**
  * @enum {String}
  * @readonly
+ * @ignore
  */
 const EdgeLabel = {
   GROUP_MEMBER: 'GroupMember',

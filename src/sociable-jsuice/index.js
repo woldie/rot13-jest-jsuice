@@ -1,4 +1,4 @@
-/* eslint-disable no-bitwise,prefer-rest-params,no-param-reassign,prefer-spread,no-underscore-dangle */
+/* eslint-disable no-bitwise,prefer-rest-params,no-param-reassign,prefer-spread,no-underscore-dangle,no-unused-vars */
 // noinspection JSBitwiseOperatorUsage
 
 const td = require('testdouble');
@@ -15,17 +15,17 @@ const classInfo = require('class-info');
 const injector = require('../jsuice');
 const Scope = require('../jsuice/lib/Scope');
 const InjectableType = require('../jsuice/lib/InjectableType');
-
-/**
- * @typedef {(String | [ String, ?function(partialMock: td.DoubledObject<any>) ])} PartialMockConfig
- */
-
-/**
- * @typedef {{ MOCK: Array.<String>=, PARTIAL_MOCK: Array.<PartialMockConfig>=, REAL: Array.<String>=, SUT: String }} CollaboratorConfig
- */
+const { SystemUnderTest, MockCollaborator, PartialMockCollaborator, TestCollaborators } = require('./lib/Types');
 
 let collaboratorSetupCalled = false;
 
+/**
+ * @class Injector
+ */
+
+/**
+ * @type {Injector}
+ */
 const sociableInjector = injector.extend((Injector, injectableMetadata, dependencyGraph) => {
   const realGetInstanceForInjectable = Injector.prototype.getInstanceForInjectable;
 
@@ -33,15 +33,21 @@ const sociableInjector = injector.extend((Injector, injectableMetadata, dependen
   let shadowedPartialMocked = {};
   let shadowedReal = {};
   let partialMockFactories = {};
+  let testCaseContext = null;
 
   /**
-   *
+   * @ignore
+   * @type {{__uninitialized__: boolean}}
+   */
+  const UNINITIALIZED = { '__uninitialized__': true };
+
+  /**
    * @param {Object} instanceTracker
    * @param {Injectable} injectable
    * @returns {Array}
    */
   function findOrCreateInstanceContainerForInjectable(instanceTracker, injectable) {
-    const container = (instanceTracker[injectable.name] === true) ? [] : instanceTracker[injectable.name];
+    const container = (instanceTracker[injectable.name] === UNINITIALIZED) ? [] : instanceTracker[injectable.name];
 
     instanceTracker[injectable.name] = container;
 
@@ -49,9 +55,8 @@ const sociableInjector = injector.extend((Injector, injectableMetadata, dependen
   }
 
   /**
-   *
-   * @param injectable injectable
-   * @param container instance container for injectable
+   * @param {Injectable} injectable injectable
+   * @param {Array.<*>} container instance container for injectable
    * @returns {boolean} is the 0th item in container a SINGLETON-scoped instance of injectable
    */
   function isSingletonAllocatedInInjectableContainer(injectable, container) {
@@ -89,162 +94,230 @@ const sociableInjector = injector.extend((Injector, injectableMetadata, dependen
     return clazz;
   }
 
-  Object.assign(Injector.prototype, {
-    getInstanceForInjectable(injectable) {
-      if (!collaboratorSetupCalled) {
-        throw new Error('Call injector.collaboratorSetup before trying to construct instances with the injector');
-      }
-
-      if (has(shadowedMocked, injectable.name)) {
-        const container = findOrCreateInstanceContainerForInjectable(shadowedMocked, injectable);
-        if (isSingletonAllocatedInInjectableContainer(injectable, container)) {
-          return container[0];
-        }
-
-        const metaObj = injectableMetadata.findOrAddMetadataFor(injectable.subject);
-        if (metaObj.numberOfUserSuppliedArgs > 0) {
-          throw new Error(`Assisted injection not yet supported in sociable-jsuice tests, ${
-            injectable.name} was the requested injectable.`);
-        }
-
-        const instance = injectable.type === InjectableType.INJECTED_CONSTRUCTOR ?
-          td.instance(injectable.subject) :
-          td.object();
-        container.push(instance);
-        return instance;
-      }
-
-      if (has(shadowedPartialMocked, injectable.name)) {
-        if (injectable.type !== InjectableType.INJECTED_CONSTRUCTOR) {
-          // TODO support other injectable types for partial mocks
-          throw new Error(`Partial mocks currently only supported for constructor functions in sociable-jsuice tests, ${
-            injectable.name} was the requested injectable.`);
-        }
-
-        const container = findOrCreateInstanceContainerForInjectable(shadowedPartialMocked, injectable);
-        if (isSingletonAllocatedInInjectableContainer(injectable, container)) {
-          return container[0];
-        }
-
-        const metaObj = injectableMetadata.findOrAddMetadataFor(injectable.subject);
-        if (metaObj.numberOfUserSuppliedArgs > 0) {
-          throw new Error(`Assisted injection not yet supported in sociable-jsuice tests, ${
-            injectable.name} was the requested injectable.`);
-        }
-
-        if (!isSpyClass(injectable.subject)) {
-          td.replace(injectable, 'subject', spyClass(injectable.subject));
-        }
-
-        // call through to the real injector as if subject on injectable were a normal class where all the members are
-        // now spies
-        const instance = realGetInstanceForInjectable.call(injector, injectable);
-        container.push(instance);
-        return instance;
-      }
-
-      if (has(shadowedReal, injectable.name)) {
-        const container = findOrCreateInstanceContainerForInjectable(shadowedReal, injectable);
-        if (isSingletonAllocatedInInjectableContainer(injectable, container)) {
-          return container[0];
-        }
-
-        const instance = realGetInstanceForInjectable.call(injector, injectable);
-        container.push(instance);
-        return instance;
-      }
-
-      throw new Error(`sociable-jsuice got request for an injectable, ${
-        injectable.name}, that was not listed in injector.collaboratorSetup nor a dependency thereof.`);
-    },
-
-    /**
-     * This function is our chance to discover what objects need to be shadowed for the current test.
-     * object
-     * @name Injector#collaboratorSetup
-     * @param {CollaboratorConfig} config
-     * @returns {Object<String, *>}
-     * @public
-     */
-    collaboratorSetup(config) {
-      collaboratorSetupCalled = true;
-
-      config = {
-        SUT: config.SUT,
-        REAL: config.REAL || [],
-        MOCK: config.MOCK || [],
-        PARTIAL_MOCK: config.PARTIAL_MOCK || []
-      }
-
-      // TODO validate collaboratorConfig for business rules/gigo (names shouldn't appear in multiple places, etc)
-
-      shadowedPartialMocked = {};
-      shadowedMocked = {};
-      shadowedReal = {};
-      partialMockFactories = {};
-
-      shadowedReal[config.SUT] = true;
-      forEach(config.REAL, realCollab => {
-        shadowedReal[realCollab] = true;
-      });
-      forEach(config.MOCK, mockCollab => {
-        shadowedMocked[mockCollab] = true;
-      });
-      forEach(config.PARTIAL_MOCK, partialMockConfig => {
-        let partialMockCollab;
-        if (isArray(partialMockConfig)) {
-          const [ collaboratorName, partialMockFactoryFtn ] = partialMockConfig;
-
-          partialMockCollab = collaboratorName;
-          if (isFunction(partialMockFactoryFtn)) {
-            partialMockFactories[partialMockCollab] = partialMockFactoryFtn;
-          }
-        } else {
-          partialMockCollab = partialMockConfig;
-        }
-
-
-        shadowedPartialMocked[partialMockCollab] = true;
-      });
-
-      // Search all injectables and collect those marked as BOUNDARY injectables
-      const boundaryInjectableNames = map(injector.injectableSearch(injectable => {
-        const metaObj = injectableMetadata.findOrAddMetadataFor(injectable.subject);
-
-        return metaObj && metaObj.flags && (metaObj.flags & injector.Flags.BOUNDARY);
-      }), injectable => injectable.name);
-
-      // find all the dependent ancestors of all real and partially mocked injectables not already in lists.  Add
-      // boundary objects to the mocks list and everything else to the real list.
-      forEach(union(keys(shadowedReal), keys(shadowedPartialMocked)), name => {
-        forEach(dependencyGraph.getAllDependentAncestors(name), dependentName => {
-          if (isUndefined(shadowedReal[dependentName]) && isUndefined(shadowedPartialMocked[dependentName]) &&
-            isUndefined(shadowedMocked[dependentName])) {
-            if (boundaryInjectableNames.indexOf(dependentName) <= 0) {
-              shadowedReal[dependentName] = true;
-            } else {
-              shadowedMocked[dependentName] = true;
-            }
-          }
-        });
-      });
-
-      // return the instantiation of all known singleton with their tree of dependencies
-      const collaboratorsAndDependencies = {};
-      reduce(union(keys(shadowedReal), keys(shadowedPartialMocked), keys(shadowedMocked)),
-        (accumulator, collaboratorName) => {
-          accumulator.collaboratorsAndDependencies[collaboratorName] = injector.getInstance(collaboratorName);
-        },
-        {
-          collaboratorsAndDependencies
-        });
-
-      return collaboratorsAndDependencies;
+  /**
+   * @param {Injectable} injectable
+   * @returns {(*|td.DoubledObject<*>)}
+   * @protected
+   * @ignore
+   */
+  Injector.prototype.getInstanceForInjectable = (injectable) => {
+    if (!collaboratorSetupCalled) {
+      throw new Error('Call injector.collaborators before trying to construct instances with the injector');
     }
-  });
+
+    if (has(shadowedMocked, injectable.name)) {
+      const container = findOrCreateInstanceContainerForInjectable(shadowedMocked, injectable);
+      if (isSingletonAllocatedInInjectableContainer(injectable, container)) {
+        return container[0];
+      }
+
+      const metaObj = injectableMetadata.findOrAddMetadataFor(injectable.subject);
+      if (metaObj.numberOfUserSuppliedArgs > 0) {
+        throw new Error(`Assisted injection not yet supported in sociable-jsuice tests, ${
+          injectable.name} was the requested injectable.`);
+      }
+
+      const instance = injectable.type === InjectableType.INJECTED_CONSTRUCTOR ?
+        td.instance(injectable.subject) :
+        td.object();
+      container.push(instance);
+      return instance;
+    }
+
+    if (has(shadowedPartialMocked, injectable.name)) {
+      if (injectable.type !== InjectableType.INJECTED_CONSTRUCTOR) {
+        // TODO support other injectable types for partial mocks
+        throw new Error(`Partial mocks currently only supported for constructor functions in sociable-jsuice tests, ${
+          injectable.name} was the requested injectable.`);
+      }
+
+      const container = findOrCreateInstanceContainerForInjectable(shadowedPartialMocked, injectable);
+      if (isSingletonAllocatedInInjectableContainer(injectable, container)) {
+        return container[0];
+      }
+
+      const metaObj = injectableMetadata.findOrAddMetadataFor(injectable.subject);
+      if (metaObj.numberOfUserSuppliedArgs > 0) {
+        throw new Error(`Assisted injection not yet supported in sociable-jsuice tests, ${
+          injectable.name} was the requested injectable.`);
+      }
+
+      if (!isSpyClass(injectable.subject)) {
+        td.replace(injectable, 'subject', spyClass(injectable.subject));
+      }
+
+      // call through to the real injector as if subject on injectable were a normal class where all the members are
+      // now spies
+      const instance = realGetInstanceForInjectable.call(injector, injectable);
+      container.push(instance);
+      return instance;
+    }
+
+    if (has(shadowedReal, injectable.name)) {
+      const container = findOrCreateInstanceContainerForInjectable(shadowedReal, injectable);
+      if (isSingletonAllocatedInInjectableContainer(injectable, container)) {
+        return container[0];
+      }
+
+      const instance = realGetInstanceForInjectable.call(injector, injectable);
+      container.push(instance);
+      return instance;
+    }
+
+    throw new Error(`sociable-jsuice got request for an injectable, ${
+      injectable.name}, that was not listed in injector.collaboratorSetup nor a dependency thereof.`);
+  };
+
+  /**
+   * This function is our chance to discover what objects need to be shadowed for the current test.
+   *
+   * @param {...Collaborator} collaboratorDescriptors
+   * @returns {Array.<*>} List of instantiated collaborators ordered the same way as collaboratorDescriptors
+   * @public
+   */
+  Injector.prototype.collaborators = (collaboratorDescriptors) => {
+    collaboratorSetupCalled = true;
+
+    const testCollaborators = TestCollaborators.create(
+      injector,
+      injectableMetadata,
+      dependencyGraph,
+      Array.from(arguments)); // arguments is the list of collaboratorDescriptors
+
+    shadowedPartialMocked = {};
+    shadowedMocked = {};
+    shadowedReal = {};
+    partialMockFactories = {};
+
+    shadowedReal[testCollaborators.sut] = UNINITIALIZED;
+    forEach(testCollaborators.reals, collabName => {
+      shadowedReal[collabName] = UNINITIALIZED;
+    });
+    forEach(testCollaborators.mocks, (mockConfig, collabName) => {
+      shadowedMocked[collabName] = UNINITIALIZED;
+    });
+    forEach(testCollaborators.partialMocks, (partialMockConfig, collabName) => {
+      shadowedPartialMocked[collabName] = UNINITIALIZED;
+    });
+
+    // return the instantiation of all requested collaboratorDescriptors with their tree of dependencies
+    const collaboratorsAndDependencies = {};
+
+    reduce(shadowedReal, (accumulator, value, collaboratorName) => {
+      accumulator.collaboratorsAndDependencies[collaboratorName] = shadowedReal[collaboratorName] === UNINITIALIZED ?
+        injector.getInstance(collaboratorName) :
+        shadowedReal[collaboratorName];
+    }, {
+      collaboratorsAndDependencies
+    });
+
+    reduce(shadowedPartialMocked, (accumulator, value, collaboratorName) => {
+      if (shadowedPartialMocked[collaboratorName] === UNINITIALIZED) {
+        const partialMock = injector.getInstance(collaboratorName);
+
+        const collabConfig = testCollaborators.partialMocks[collaboratorName];
+        if (collabConfig && collabConfig.customizer) {
+          collabConfig.customizer(collaboratorName, partialMock);
+        }
+
+        accumulator.collaboratorsAndDependencies[collaboratorName] = partialMock;
+      } else {
+        accumulator.collaboratorsAndDependencies[collaboratorName] = shadowedPartialMocked[collaboratorName];
+      }
+    }, {
+      collaboratorsAndDependencies
+    });
+
+    reduce(shadowedMocked, (accumulator, value, collaboratorName) => {
+      if (shadowedMocked[collaboratorName] === UNINITIALIZED) {
+        const mock = injector.getInstance(collaboratorName);
+
+        const collabConfig = testCollaborators.mocks[collaboratorName];
+        if (collabConfig && collabConfig.customizer) {
+          collabConfig.customizer(collaboratorName, mock);
+        }
+
+        accumulator.collaboratorsAndDependencies[collaboratorName] = mock;
+      } else {
+        accumulator.collaboratorsAndDependencies[collaboratorName] = shadowedMocked[collaboratorName];
+      }
+    }, {
+      collaboratorsAndDependencies
+    });
+
+    // return only the requested collaborators in the order they were requested
+    return map(testCollaborators.collaboratorNames, (name) => collaboratorsAndDependencies[name]);
+  };
+
+  /**
+   * @returns {Object.<String,*>} context object
+   * @public
+   */
+  Injector.prototype.getInjectorContext = () => {
+    if (testCaseContext === null) {
+      throw new Error("An injector context is available only when a test is running");
+    }
+    return testCaseContext;
+  };
+
+  /**
+   * Configures {@link injector#collaborators} to return a mock for injectableName.
+   *
+   * @param {String} injectableName name of the injectable that you want the injector to mock
+   * @param {?function(injectableName:String,mockObj:td.DoubledObject<*>,context:Object<String,*>)} customizer
+   * optional callback that gets called with the mockObj created to mimic injectableName's injectable.  You may
+   * further customize mockObj with the
+   * {@link https://github.com/testdouble/testdouble.js#tdwhen-for-stubbing-responses td.when} API in the customizer.
+   * context is an object created for each test case that is passed to the customizer functions and that can be
+   * used to share state between the test and mocks.
+   * @returns {MockCollaborator} the configuration for a mock that can be passed to {@link Injector#collaborators}
+   * @public
+   */
+  Injector.prototype.mockConfig = (injectableName, customizer) => {
+    const context = this.getInjectorContext();
+    if (customizer) {
+      return new MockCollaborator(injectableName, (mockObj) => {
+        customizer(injectableName, mockObj, context);
+      });
+    }
+
+    return new MockCollaborator(injectableName);
+  };
+
+  /**
+   * Configures {@link injector#collaborators} to return a partial mock for injectableName.  All enumerable
+   * instance and static methods on the injectable are monkey patched with
+   * {@link https://github.com/testdouble/testdouble.js#tdfunc td.function}s and unless directed to behave otherwise
+   * with {@link https://github.com/testdouble/testdouble.js#tdwhen-for-stubbing-responses td.when}, these
+   * td.functions will call through to real injectable instance - essentially acting as a spy.
+   *
+   * @param {String} injectableName name of the injectable that you want the injector to partial mock
+   * @param {?function(injectableName:String,mockObj:td.DoubledObject<*>,context:Object<String,*>)} customizer
+   * optional callback that gets called with the mockObj created to mimic injectableName's injectable.  You may
+   * further customize mockObj with the
+   * {@link https://github.com/testdouble/testdouble.js#tdwhen-for-stubbing-responses td.when} API in the customizer.
+   * context is an object created for each test case that is passed to the customizer functions and that can be
+   * used to share state between the test and mocks.
+   * @returns {PartialMockCollaborator} the configuration for a partial mock that can be passed to
+   * {@link Injector#collaborators}
+   * @public
+   */
+  Injector.prototype.partialMock = (injectableName, customizer) => {
+    const context = this.getInjectorContext();
+    if (customizer) {
+      return new PartialMockCollaborator(injectableName, (mockObj) => {
+        customizer(injectableName, mockObj, context);
+      });
+    }
+
+    return new PartialMockCollaborator(injectableName);
+  };
+
+  Injector.prototype.systemUnderTest = (injectableName) => new SystemUnderTest(injectableName);
 
   beforeEach(() => {
     collaboratorSetupCalled = false;
+    testCaseContext = {};
   });
 
   afterEach(() => {
@@ -259,6 +332,7 @@ const sociableInjector = injector.extend((Injector, injectableMetadata, dependen
     // TODO: reset mocks and put them into a pool rather than clearing the map and allowing them to garbage collect here
 
     shadowedMocked = {};
+    testCaseContext = null;
   });
 });
 

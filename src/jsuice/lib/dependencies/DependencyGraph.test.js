@@ -100,7 +100,73 @@ describe('DependencyGraph', () => {
     });
   });
 
-  // describe('getAllDependentAncestors', () => {
-  //   it('will get all the ancestors of ')
-  // });
+  describe('getAllDependenciesAndDescendants', () => {
+    it('will get all the dependencies and descendants of those dependencies', () => {
+      // GIVEN: some fake injectables and register them with the graph
+      const rootInjectable = /** @type {Injectable} */ { name: 'root' };
+      const aInjectable = /** @type {Injectable} */ { name: 'a' };
+      const bInjectable = /** @type {Injectable} */ { name: 'b' };
+      const cInjectable = /** @type {Injectable} */ { name: 'c' };
+      const dInjectable = /** @type {Injectable} */ { name: 'd' };
+      const eInjectable = /** @type {Injectable} */ { name: 'e' };
+      const fInjectable = /** @type {Injectable} */ { name: 'f' };
+
+      dependencyGraph.findOrCreateInjectableVertex('root', rootInjectable);
+      dependencyGraph.associateInjectableWithModuleGroup(rootInjectable, 'myModuleGroup');
+      dependencyGraph.findOrCreateInjectableVertex('a', aInjectable);
+      dependencyGraph.associateInjectableWithModuleGroup(aInjectable, 'myModuleGroup');
+      dependencyGraph.findOrCreateInjectableVertex('b', bInjectable);
+      dependencyGraph.associateInjectableWithModuleGroup(bInjectable, 'myModuleGroup');
+      dependencyGraph.findOrCreateInjectableVertex('c', cInjectable);
+      dependencyGraph.associateInjectableWithModuleGroup(cInjectable, 'myModuleGroup');
+      dependencyGraph.findOrCreateInjectableVertex('d', dInjectable);
+      dependencyGraph.associateInjectableWithModuleGroup(dInjectable, 'myModuleGroup');
+      dependencyGraph.findOrCreateInjectableVertex('e', eInjectable);
+      dependencyGraph.associateInjectableWithModuleGroup(eInjectable, 'myModuleGroup');
+      dependencyGraph.findOrCreateInjectableVertex('f', fInjectable);
+      dependencyGraph.associateInjectableWithModuleGroup(fInjectable, 'myModuleGroup');
+
+      // make parameter associations to build the tree of dependencies
+      dependencyGraph.associateConstructionParameterWithInjectable(rootInjectable, 'a');
+      dependencyGraph.associateConstructionParameterWithInjectable(rootInjectable, 'b');
+      dependencyGraph.associateConstructionParameterWithInjectable(aInjectable, 'c');
+      dependencyGraph.associateConstructionParameterWithInjectable(cInjectable, 'd');
+      dependencyGraph.associateConstructionParameterWithInjectable(bInjectable, 'e');
+      dependencyGraph.associateConstructionParameterWithInjectable(bInjectable, 'f');
+
+      // WHEN: I query for all the descendants of root and get their names
+      const rootDependencies = dependencyGraph.getAllDependenciesAndDescendants('root').map(v => v.name);
+
+      // THEN: it contains all expected dependencies
+      expect(rootDependencies).toContain('a');
+      expect(rootDependencies).toContain('b');
+      expect(rootDependencies).toContain('c');
+      expect(rootDependencies).toContain('d');
+      expect(rootDependencies).toContain('e');
+      expect(rootDependencies).toContain('f');
+      expect(rootDependencies.length).toEqual(6);
+
+      // WHEN: I query for all the descendants of a
+      const aDependencies = dependencyGraph.getAllDependenciesAndDescendants('a').map(v => v.name);
+
+      // THEN: it contains all expected dependencies
+      expect(aDependencies).toContain('c');
+      expect(aDependencies).toContain('d');
+      expect(aDependencies.length).toEqual(2);
+
+      // WHEN: I query for all the descendants of b
+      const bDependencies = dependencyGraph.getAllDependenciesAndDescendants('b').map(v => v.name);
+
+      // THEN: it contains all expected dependencies
+      expect(bDependencies).toContain('e');
+      expect(bDependencies).toContain('f');
+      expect(bDependencies.length).toEqual(2);
+
+      // WHEN: I query for all the descendants of f
+      const fDependencies = dependencyGraph.getAllDependenciesAndDescendants('f').map(v => v.name);
+
+      // THEN: it contains no dependencies
+      expect(fDependencies.length).toEqual(0);
+    });
+  });
 });

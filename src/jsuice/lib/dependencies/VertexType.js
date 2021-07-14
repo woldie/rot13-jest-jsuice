@@ -1,6 +1,7 @@
 /**
  * @enum {String}
  * @readonly
+ * @ignore
  */
 const VertexType = {
   MODULE_GROUP: 'ModuleGroup',

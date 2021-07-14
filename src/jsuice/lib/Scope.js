@@ -6,6 +6,10 @@ const forEach = require('lodash.foreach');
  * @enum {Number}
  * @readonly
  * @public
+ *
+ * @property {Number} SINGLETON
+ * @property {Number} APPLICATION
+ * @property {Number} PROTOTYPE
  */
 const Scope = {};
 
@@ -23,21 +27,3 @@ forEach({
 });
 
 module.exports = Scope;
-
-/**
- * @name Scope.SINGLETON
- * @public
- * @const
- */
-
-/**
- * @name Scope.APPLICATION
- * @public
- * @const
- */
-
-/**
- * @name Scope.PROTOTYPE
- * @public
- * @const
- */
