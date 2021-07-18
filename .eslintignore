@@ -1,10 +1,10 @@
 node_modules
 .eslintrc
-jest.integration.config.js
+jest.functional.config.js
 jest.unit.config.js
 jest.client.unit.config.js
 jest.smoke.config.js
-nyc.integration.config.js
+nyc.functional.config.js
 build
 reports
 wallaby.client.js

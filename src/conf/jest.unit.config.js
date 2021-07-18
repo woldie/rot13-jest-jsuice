@@ -7,22 +7,19 @@ module.exports = {
   clearMocks: true,
   moduleFileExtensions: ['js', 'json'],
   roots: ['<rootDir>/src'],
-  modulePathIgnorePatterns: [
-    '<rootDir>/src/integration',
-    '<rootDir>/src/smoke',
-  ],
   testEnvironment: 'node',
   testMatch: ['<rootDir>/src/**/*.test.js'],
-  testPathIgnorePatterns: ['<rootDir>/src/integration'],
-  moduleDirectories: ['node_modules', 'src'],
+  setupFilesAfterEnv: ['<rootDir>/jest.unit.setup.js'],
+  moduleDirectories: ['<rootDir>/node_modules', '<rootDir>/src'],
   collectCoverage: true,
-  coverageDirectory: 'reports/unit',
+  coverageDirectory: '<rootDir>/reports/unit',
   collectCoverageFrom: [
-    'src/**/*.js',
-    '!src/App.js', // entry point module not covered, hard to test, so keep it simple
-    '!src/**/*.test.js',
-    '!src/integration/globalSetup.js',
-    '!src/integration/globalTeardown.js'
+    '<rootDir>/src/**/*.js',
+    '!<rootDir>/src/rot13-service/AdminServer.js', // entry point module not covered, hard to test, so keep it simple
+    '!<rootDir>/src/rot13-service/Rot13Server.js', // entry point module not covered, hard to test, so keep it simple
+    '!<rootDir>/src/**/*.test.js',
+    '!<rootDir>/src/**/*.functional.js',
+    '!<rootDir>/src/conf/**/*.js',
   ],
   coverageReporters: [
     'json-summary', // coverage summary

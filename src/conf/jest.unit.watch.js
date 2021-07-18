@@ -5,12 +5,12 @@ module.exports = { ...jestUnitTestConfigs,
   bail: false,
   verbose: false,
   reporters: [
-    '<rootDir>/src/testUtilities/WatchFriendlyReporter.js',
+    `${__dirname}/testUtilities/WatchFriendlyReporter.js`,
     [
-      './node_modules/jest-reporter',
+      `${__dirname}../../node_modules/jest-reporter`,
       {
-        passSound: './sounds/unit_pass.wav',
-        failSound: './sounds/unit_fail.wav',
+        passSound: `${__dirname}/sounds/unit_pass.wav`,
+        failSound: `${__dirname}/sounds/unit_fail.wav`,
         skipFailSound: false,
         skipFailText: true,
         skipPassSound: false,

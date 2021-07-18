@@ -1,4 +1,4 @@
-/* eslint-disable no-unused-vars,max-classes-per-file,no-bitwise */
+/* eslint-disable no-unused-vars,max-classes-per-file,no-bitwise,prefer-destructuring */
 // noinspection JSBitwiseOperatorUsage
 
 const td = require('testdouble');
@@ -14,14 +14,21 @@ const isUndefined = require('lodash.isundefined');
 class SystemUnderTest {
   /**
    * @param {String} injectableName
+   * @param {Array.<*>} assistedInjectionParams
    * @package
    */
-  constructor(injectableName) {
+  constructor(injectableName, assistedInjectionParams) {
     /**
      * @name SystemUnderTest#injectableName
      * @type {String}
      */
     this.injectableName = injectableName;
+
+    /**
+     * @name PartialMockCollaborator#assistedInjectionParams
+     * @type {Array.<*>}
+     */
+    this.assistedInjectionParams = assistedInjectionParams;
   }
 }
 
@@ -56,16 +63,24 @@ class MockCollaborator {
 class PartialMockCollaborator {
   /**
    * @param {String} injectableName
+   * @param {Array.<*>} assistedInjectionParams
    * @param {MockCustomizerCallback=} customizer
    * @package
    */
-  constructor(injectableName, customizer) {
+  constructor(injectableName, assistedInjectionParams, customizer) {
     /**
      * @name PartialMockCollaborator#injectableName
      * @type {String}
      * @package
      */
     this.injectableName = injectableName;
+
+    /**
+     * @name PartialMockCollaborator#assistedInjectionParams
+     * @type {Array.<*>}
+     * @package
+     */
+    this.assistedInjectionParams = assistedInjectionParams;
 
     /**
      * @name PartialMockCollaborator#customizer
@@ -85,7 +100,7 @@ class PartialMockCollaborator {
  */
 class TestCollaborators {
   /**
-   * @param {String} sut
+   * @param {Object.<String,SystemUnderTest>} sut
    * @param {Array.<String>} reals
    * @param {Object.<String,MockCollaborator>} mocks
    * @param {Object.<String,PartialMockCollaborator>} partialMocks
@@ -94,7 +109,7 @@ class TestCollaborators {
   constructor(sut, reals, mocks, partialMocks, collaboratorNames) {
     /**
      * @name TestCollaborators#sut
-     * @type {String}
+     * @type {Object.<String,SystemUnderTest>}
      */
     this.sut = sut;
 
@@ -161,7 +176,7 @@ class TestCollaborators {
           collaboratorNames.push(collaborator.injectableName);
         } else if (collaborator instanceof SystemUnderTest) {
           validateNameNotAlreadyUsed(collaborator.injectableName);
-          sut.push(collaborator.injectableName);
+          sut.push(collaborator);
           reals.push(collaborator.injectableName);
           collaboratorNames.push(collaborator.injectableName);
         } else {
@@ -221,7 +236,10 @@ class TestCollaborators {
       throw new Error('No SUT was specified, exactly one SUT must be specified per test case');
     }
 
-    return new TestCollaborators(sut[0], reals, mocks, partialMocks, collaboratorNames);
+    const sutObj = {};
+    sutObj[sut[0].injectableName] = sut[0];
+
+    return new TestCollaborators(sutObj, reals, mocks, partialMocks, collaboratorNames);
   }
 }
 

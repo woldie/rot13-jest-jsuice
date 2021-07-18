@@ -2,9 +2,10 @@
 
 const InjectorUtils = require('./InjectorUtils');
 const Provider = require('./Provider');
+const InjectedParamType = require('./InjectedParamType');
 
 /**
- * @typedef {{scope: Scope, eager: Boolean, flags: Number, injectedParams: Array.<String>, numberOfUserSuppliedArgs: Number=}} InjectableMetadata.Collection
+ * @typedef {{scope: Scope, eager: Boolean, flags: Number, injectedParams: Array.<String|FactoryFunction>, injectedParamTypes: Array.<InjectedParamType>, numberOfUserSuppliedArgs: Number=}} InjectableMetadata.Collection
  */
 
 /**

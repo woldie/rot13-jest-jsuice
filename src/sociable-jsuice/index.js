@@ -4,13 +4,10 @@
 const td = require('testdouble');
 const forEach = require('lodash.foreach');
 const reduce = require('lodash.reduce');
-const union = require('lodash.union');
-const keys = require('lodash.keys');
-const isFunction = require('lodash.isfunction');
-const isUndefined = require('lodash.isundefined');
-const isArray = require('lodash.isarray');
 const map = require('lodash.map');
+const keys = require('lodash.keys');
 const has = require('lodash.has');
+const isFunction = require('lodash.isfunction');
 const classInfo = require('class-info');
 const injector = require('../jsuice');
 const Scope = require('../jsuice/lib/Scope');
@@ -29,6 +26,7 @@ let collaboratorSetupCalled = false;
 const sociableInjector = injector.extend((Injector, injectableMetadata, dependencyGraph) => {
   const realGetInstanceForInjectable = Injector.prototype.getInstanceForInjectable;
 
+  let testCollaborators = null;
   let shadowedMocked = {};
   let shadowedPartialMocked = {};
   let shadowedReal = {};
@@ -96,11 +94,15 @@ const sociableInjector = injector.extend((Injector, injectableMetadata, dependen
 
   /**
    * @param {Injectable} injectable
+   * @param {Array.<String>=} nameHistory stack of injectable names that are used to prevent circular dependencies
+   * @param {Array.<Scope>=} scopeHistory stack of scopes that match up with names
+   * @param {Array.<*>=} assistedInjectionParams additional user-supplied parameters that will be passed to
    * @returns {(*|td.DoubledObject<*>)}
    * @protected
    * @ignore
    */
-  Injector.prototype.getInstanceForInjectable = (injectable) => {
+  Injector.prototype.getInstanceForInjectable = (injectable, nameHistory, scopeHistory,
+                                                 assistedInjectionParams) => {
     if (!collaboratorSetupCalled) {
       throw new Error('Call injector.collaborators before trying to construct instances with the injector');
     }
@@ -136,19 +138,14 @@ const sociableInjector = injector.extend((Injector, injectableMetadata, dependen
         return container[0];
       }
 
-      const metaObj = injectableMetadata.findOrAddMetadataFor(injectable.subject);
-      if (metaObj.numberOfUserSuppliedArgs > 0) {
-        throw new Error(`Assisted injection not yet supported in sociable-jsuice tests, ${
-          injectable.name} was the requested injectable.`);
-      }
-
       if (!isSpyClass(injectable.subject)) {
         td.replace(injectable, 'subject', spyClass(injectable.subject));
       }
 
       // call through to the real injector as if subject on injectable were a normal class where all the members are
       // now spies
-      const instance = realGetInstanceForInjectable.call(injector, injectable);
+      const instance = realGetInstanceForInjectable.call(injector, injectable, nameHistory, scopeHistory,
+        assistedInjectionParams);
       container.push(instance);
       return instance;
     }
@@ -159,7 +156,8 @@ const sociableInjector = injector.extend((Injector, injectableMetadata, dependen
         return container[0];
       }
 
-      const instance = realGetInstanceForInjectable.call(injector, injectable);
+      const instance = realGetInstanceForInjectable.call(injector, injectable, nameHistory, scopeHistory,
+        assistedInjectionParams);
       container.push(instance);
       return instance;
     }
@@ -178,7 +176,7 @@ const sociableInjector = injector.extend((Injector, injectableMetadata, dependen
   Injector.prototype.collaborators = (collaboratorDescriptors) => {
     collaboratorSetupCalled = true;
 
-    const testCollaborators = TestCollaborators.create(
+    testCollaborators = TestCollaborators.create(
       injector,
       injectableMetadata,
       dependencyGraph,
@@ -189,7 +187,11 @@ const sociableInjector = injector.extend((Injector, injectableMetadata, dependen
     shadowedReal = {};
     partialMockFactories = {};
 
-    shadowedReal[testCollaborators.sut] = UNINITIALIZED;
+    const sutKeys = keys(testCollaborators.sut);
+
+    forEach(sutKeys, collabName => {
+      shadowedReal[collabName] = UNINITIALIZED;
+    });
     forEach(testCollaborators.reals, collabName => {
       shadowedReal[collabName] = UNINITIALIZED;
     });
@@ -203,9 +205,15 @@ const sociableInjector = injector.extend((Injector, injectableMetadata, dependen
     // return the instantiation of all requested collaboratorDescriptors with their tree of dependencies
     const collaboratorsAndDependencies = {};
 
-    reduce(shadowedReal, (accumulator, value, collaboratorName) => {
+    const realCollaborators = [ ...sutKeys, ...testCollaborators.reals ];
+    reduce(realCollaborators, (accumulator, collaboratorName) => {
+      const sutConfig = testCollaborators.sut[collaboratorName];
+
+      // if real is the sut, we might also have assistedInjectionParams
+      const assistedInjectionParams = sutConfig ? sutConfig.assistedInjectionParams : [];
+
       accumulator.collaboratorsAndDependencies[collaboratorName] = shadowedReal[collaboratorName] === UNINITIALIZED ?
-        injector.getInstance(collaboratorName) :
+        injector.getInstance.apply(injector, [ collaboratorName, ...assistedInjectionParams ]) :
         shadowedReal[collaboratorName];
     }, {
       collaboratorsAndDependencies
@@ -213,9 +221,12 @@ const sociableInjector = injector.extend((Injector, injectableMetadata, dependen
 
     reduce(shadowedPartialMocked, (accumulator, value, collaboratorName) => {
       if (shadowedPartialMocked[collaboratorName] === UNINITIALIZED) {
-        const partialMock = injector.getInstance(collaboratorName);
-
         const collabConfig = testCollaborators.partialMocks[collaboratorName];
+        const partialMock = injector.getInstance.apply(injector, [
+          collaboratorName,
+          ...collabConfig.assistedInjectionParams
+        ]);
+
         if (collabConfig && collabConfig.customizer) {
           collabConfig.customizer(collaboratorName, partialMock);
         }
@@ -298,22 +309,37 @@ const sociableInjector = injector.extend((Injector, injectableMetadata, dependen
    * {@link https://github.com/testdouble/testdouble.js#tdwhen-for-stubbing-responses td.when} API in the customizer.
    * context is an object created for each test case that is passed to the customizer functions and that can be
    * used to share state between the test and mocks.
+   * @param {...*} assistedInjectionParams assisted injection params that are passed to the injectable when it is
+   * constructed.  These may be mocks or real as appropriate for your test case.  If 1-or-more assistedInjectionParams
+   * are required for injectableName to be instantiated, then customizer is required (even if it is a no-op function).
    * @returns {PartialMockCollaborator} the configuration for a partial mock that can be passed to
    * {@link Injector#collaborators}
    * @public
    */
   Injector.prototype.partialMock = (injectableName, customizer) => {
-    const context = this.getInjectorContext();
+    const args = Array.from(arguments);
+
+    if (args.length > 1 && !isFunction(customizer)) {
+      throw new Error(`partialMock: for injectableName ${injectableName} customizer passed was not a function`);
+    }
+
+    const assistedInjectionParams = (args.length > 2) ? args.slice(2) : [];
+
     if (customizer) {
-      return new PartialMockCollaborator(injectableName, (mockObj) => {
+      const context = this.getInjectorContext();
+      return new PartialMockCollaborator(injectableName, assistedInjectionParams, (mockObj) => {
         customizer(injectableName, mockObj, context);
       });
     }
 
-    return new PartialMockCollaborator(injectableName);
+    return new PartialMockCollaborator(injectableName, assistedInjectionParams);
   };
 
-  Injector.prototype.systemUnderTest = (injectableName) => new SystemUnderTest(injectableName);
+  Injector.prototype.systemUnderTest = (injectableName) => {
+    const assistedInjectionParams = Array.from(arguments).slice(1);
+
+    return new SystemUnderTest(injectableName, assistedInjectionParams);
+  }
 
   beforeEach(() => {
     collaboratorSetupCalled = false;

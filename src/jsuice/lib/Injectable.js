@@ -17,9 +17,15 @@ class Injectable {
 
     /**
      * @name Injectable#injectedParams
-     * @type {Array.<string>}
+     * @type {Array.<String>}
      */
     self.injectedParams = [];
+
+    /**
+     * @name Injectable#injectedParamTypes
+     * @type {Array.<InjectableType>}
+     */
+    self.injectedParamTypes = [];
 
     const typeofSubject = typeof subject;
     switch (typeofSubject) {
@@ -48,6 +54,7 @@ class Injectable {
           }
 
           Array.prototype.push.apply(self.injectedParams, describedParameters);
+          Array.prototype.push.apply(self.injectedParamTypes, metaObj.injectedParamTypes);
 
           if (Object.prototype.hasOwnProperty.call(metaObj, "scope")) {
             scope = metaObj.scope;
@@ -62,6 +69,7 @@ class Injectable {
           type = InjectableType.PROVIDER;
           scope = Scope.PROTOTYPE;
           Array.prototype.push.apply(self.injectedParams, subject.dependencies);
+          Array.prototype.push.apply(self.injectedParamTypes, subject.injectedParamTypes);
         } else if (subject instanceof String) {
           Injectable.failWithTypeofError(injectableName, "String");
         } else {

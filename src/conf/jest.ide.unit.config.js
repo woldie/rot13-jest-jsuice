@@ -3,13 +3,9 @@ module.exports = {
   setupFiles: [],
   moduleFileExtensions: ['js', 'json'],
   roots: ['<rootDir>/src'],
-  modulePathIgnorePatterns: [
-    '<rootDir>/src/integration',
-  ],
   testEnvironment: 'node',
   testMatch: ['<rootDir>/src/**/*.test.js'],
-  testPathIgnorePatterns: ['<rootDir>/src/integration'],
-  moduleDirectories: ['node_modules', 'src'],
+  moduleDirectories: ['<rootDir>/node_modules', '<rootDir>/rc'],
   collectCoverage: false,
   reporters: ['default'],
 

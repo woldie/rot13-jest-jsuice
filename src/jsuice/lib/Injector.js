@@ -16,6 +16,7 @@ const Provider = require('./Provider');
 const injectableMetadata = require('./injectableMetadata');
 const InjectorUtils = require('./InjectorUtils');
 const DependencyGraph = require('./dependencies/DependencyGraph');
+const InjectedParamType = require('./InjectedParamType');
 
 /**
  * J'suice Dependency Injector
@@ -73,6 +74,17 @@ class Injector {
      * @ignore
      */
     self.dependencyGraph = new DependencyGraph();
+
+    /**
+     * Keeps track of which functions we have created to be factory functions.  Prevents callers from passing the
+     * Injector arbitrary functions that it will call.
+     *
+     * @name Injector#isFactoryFunction
+     * @type {WeakMap<Function, Boolean>}
+     * @package
+     * @ignore
+     */
+    self.isFactoryFunction = new WeakMap();
   }
 
   /**
@@ -173,34 +185,51 @@ class Injector {
   }
 
   /**
+   * @private
+   * @ignore
+   * @param {(String|FactoryFunction)} injectedParam
+   * @param {Number} injectedParamIndex
+   * @param {String} forFunction
+   * @param {String} description
+   * @returns {InjectedParamType} if valid injectedParam, this is its type
+   * @throws {Error} if injectedParam is not a String or FactoryFunction
+   */
+  validateInjectedParam(injectedParam, injectedParamIndex, forFunction, description) {
+    if (isString(injectedParam)) {
+      return InjectedParamType.INJECTABLE_NAME;
+    }
+    if (isFunction(injectedParam) && this.isFactoryFunction.has(injectedParam)) {
+      return InjectedParamType.FACTORY_FUNCTION;
+    }
+
+    throw new Error(`${forFunction} injectedParam[${
+      injectedParamIndex}]: only Strings or FactoryFunctions may be passed for injectedParams. ${description}`);
+  }
+
+  /**
    * Annotate a constructor function with metadata that instructs the injector what the scope, injectedParams and
    * other configuration flags should be when it instantiates using that constructor.  With the annotations, the
-   * constructor is converted into a jsuice module that can be added to a module group using
-   * {@link Injector#moduleGroup}.
+   * constructor is converted into a jsuice injectable that can then be added to a module group using
+   * {@link #moduleGroup}.
    *
-   * @param {typeof T} ctor constructor function.  injectedParams.length + numberOfUserSuppliedArgs must exactly equal the
-   * number of named parameters on the ctor function
-   * @param {...(number|string)} args metadata about ctor.  The format of args is
-   * <blockquote><pre>[ flags, [ numberOfUserSuppliedArgs, ] ] [ injectedParams... ]</pre></blockquote>
-   * where:
-   * <ul>
-   *   <li><code>Number flags</code> - integer containing flag constants that describe
-   *   what the scope and configuration flags should be for the constructor.  Valid flag constants are
-   *   {@link Injector#Scope.APPLICATION}, {@link Injector#Scope.SINGLETON}, {@link Injector#Scope.PROTOTYPE},
-   *   {@link Injector#Flags.EAGER} and {@link Injector#Flags.BOUNDARY}.  Use bitwise-OR or the plus operator to union
-   *   flag constants together into one flags value.</li>
-   *   <li><code>Number numberOfUserSuppliedArgs</code> - positive integer describing how many extra parameters will the
-   *   user pass to the constructor in addition to the ones supplied by the injector.  numberOfUserSuppliedArgs defaults
-   *   to 0 if not specified.  It is an error for numberOfUserSuppliedArgs to be > 0 for scope flags other than
-   *   {@link Injector#Scope.PROTOTYPE}.</li>
-   *   <li><code>String... injectedParams</code> - names of modules that need to be instantiated and passed as parameters
-   *   to the ctor at time of instantiation.</li>
-   * </ul>
+   * @param {Function & typeof T} ctor constructor function.  injectedParams.length + numberOfUserSuppliedArgs must exactly equal
+   * the number of named parameters on the ctor function
+   * @param {Number=} flags optional integer containing flag constants that describe what the scope and configuration
+   * flags should be for the constructor.  Valid flag constants are {@link #Scope.APPLICATION},
+   * {@link #Scope.SINGLETON}, {@link #Scope.PROTOTYPE}, {@link #Flags.EAGER} and {@link #Flags.BOUNDARY}.  Use
+   * bitwise-OR or the plus operator to union flag constants together into one flags value.
+   * @param {Number=} numberOfUserSuppliedArgs optional positive integer describing how many extra parameters will the
+   * user pass to the constructor in addition to the ones supplied by the injector.  numberOfUserSuppliedArgs defaults
+   * to 0 if not specified.  It is an error for numberOfUserSuppliedArgs to be > 0 for scope flags other than
+   * {@link Injector#Scope.PROTOTYPE}.  If numberOfUserSuppliedArgs is specified, then flags is required.
+   * @param {...(String|FactoryFunction)} injectedParams 0-or-more ordered, variable argument set of String names of
+   * injectables or {@link #FactoryFunction}s that must be instantiated by {@link #getInstance} that are passed as
+   * constructor arguments to ctor.
    * @returns {typeof T} annotated constructor function
    * @template T
    * @see {@link Injector#moduleGroup}
    */
-  annotateConstructor(ctor) {
+  annotateConstructor(ctor, flags, numberOfUserSuppliedArgs) {
     if (!isFunction(ctor)) {
       throw new Error("annotateConstructor: ctor is a required parameter and must be a constructor function");
     }
@@ -214,31 +243,31 @@ class Injector {
     const argList = Array.from(arguments);
     const isFlagsSupplied = isNumber(argList[1]);
     const isUserSuppliedArgsCountSpecified = isNumber(argList[2]);
+    numberOfUserSuppliedArgs = isUserSuppliedArgsCountSpecified ? argList[2] : 0;
     const injectedParamsStartIndex = 1 + (isFlagsSupplied ? 1 : 0) + (isUserSuppliedArgsCountSpecified ? 1 : 0);
+    const injectedParamsArray = (argList.length > injectedParamsStartIndex) ?
+      argList.slice(injectedParamsStartIndex) :
+      [];
+
     const metaObj = {
-      injectedParams: (argList.length > injectedParamsStartIndex) ? argList.slice(injectedParamsStartIndex) : [],
-      numberOfUserSuppliedArgs: (isUserSuppliedArgsCountSpecified ? argList[2] : 0),
+      injectedParams: injectedParamsArray,
+      injectedParamTypes: map(injectedParamsArray, (injectedParam, idx) =>
+        this.validateInjectedParam(injectedParam, idx, 'annotateConstructor', `ctor: ${
+          InjectorUtils.getFunctionSignature(ctor)}`)),
+      numberOfUserSuppliedArgs,
       eager: false,
       scope: Scope.PROTOTYPE,
       flags: 0
     };
 
-    for (let i = 0, ii = metaObj.injectedParams.length; i < ii; i += 1) {
-      if (!isString(metaObj.injectedParams[i])) {
-        throw new Error(`annotateConstructor: injectedParam[${
-          i}] was not a string. Only strings may be passed for injectedParams. ctor: ${
-          InjectorUtils.getFunctionSignature(ctor)}`);
-      }
-    }
-
     if ((metaObj.injectedParams.length + metaObj.numberOfUserSuppliedArgs) !== ctor.length) {
-      throw new Error(`annotateConstructor: parameter counts do not match. Expected ctor to have ${
-          metaObj.injectedParams.length} injectables + ${
-          metaObj.numberOfUserSuppliedArgs} extra parameters, but ctor only has ${
-          ctor.length} params. ctor: ${InjectorUtils.getFunctionSignature(ctor)}`);
+      throw new Error(`annotateConstructor: ctor named argument counts do not match. Expected ctor to take ${
+          metaObj.injectedParams.length} injectable arguments + ${
+          metaObj.numberOfUserSuppliedArgs} user-supplied arguments, but ctor has ${
+          ctor.length} named arguments. ctor: ${InjectorUtils.getFunctionSignature(ctor)}`);
     }
 
-    let flags = isFlagsSupplied ? argList[1] : Scope.PROTOTYPE;
+    flags = isFlagsSupplied ? argList[1] : Scope.PROTOTYPE;
 
     switch (flags & (Scope.SINGLETON | Scope.APPLICATION | Scope.PROTOTYPE)) {
       case Scope.PROTOTYPE:
@@ -301,52 +330,106 @@ class Injector {
   }
 
   /**
+   * A factory function returned for a jsuice injectable from {@link #factoryFunction}.
+   *
+   * @typedef {Function} FactoryFunction
+   * @param {...*} userSuppliedArguments 0-or-more required user-supplied variable argument list expected by the
+   * injectable that this FactoryFunction instantiates.  See {@link #annotateConstructor} and {@link #createProvider}
+   * for more discussion about user-supplied arguments.
+   * @template T
+   * @returns {T} Instance of injectable type T for the injectableName passed to {@link #factoryFunction}.  You may
+   * pass this FactoryFunction as one of the injectedParams for {@link #annotateConstructor} and {@link #createProvider}
+   */
+
+  /**
+   * Creates a factory function for injectableName that may be passed to {@link #annotateConstructor} or
+   * {@link #createProvider}.  The factory function is useful in assisted injection scenarios where
+   * {@link #Scope.PROTOTYPE} objects need to be created at-will that are instantiated with injectables from both the
+   * {@link Injector} and the user.
+   *
+   * @param injectableName
+   * @returns {FactoryFunction}
+   */
+  factoryFunction(injectableName) {
+    const self = this;
+
+    /**
+     * @param {...*} userSuppliedArgs
+     */
+    function factoryFunction() {
+      const userSuppliedArgs = Array.from(arguments);
+
+      return self.getInstance.apply(self, [injectableName, ...userSuppliedArgs]);
+    }
+
+    self.isFactoryFunction.set(factoryFunction, true);
+
+    return factoryFunction;
+  }
+
+  /**
    * Create a Provider that wraps a function for acquiring an object instance.  The Provider is suitable for passing to
    * {@link Injector#moduleGroup} as an injectable subject.
    *
    * <p>Use Providers whenever items you want to be injectables cannot be represented with a class or there are
    * complicating factors to acquiring the injectable.  For example, an asynchronously initialized item would be
    * wrapped with a Promise.  In that case, providerFunction would return a Promise to the item and the user would
-   * wait on the Promise to get access to the item.
+   * be required to wait on the Promise to get access to the injectable instance.
    *
-   * @param {function} providerFunction a function that takes injectedParams plus optional user-supplied arguments and
-   * returns an object.  injectedParams.length + numOfUserSuppliedArgs must exactly equal the number of named
-   * parameters on the providerFunction.
-   * @param {Number} numOfUserSuppliedArgs number of parameters that are expected to be passed from calls to
+   * @param {function(params: ...*): T} providerFunction a function that takes injectedParams plus optional
+   * user-supplied arguments and returns an object.  injectedParams.length + numOfUserSuppliedArgs must exactly equal
+   * the number of named parameters on the providerFunction.
+   * @param {Number} numOfUserSuppliedArgs optional number of parameters that are expected to be passed from calls to
    * {@link Injector#getInstance} to the factory function when the returned Provider is the injectable subject.
-   * Whenever the Injector calls the providerFunction, instances for the injectedParams will always be passed in the
-   * argument list to the providerFunction first, followed by the user-supplied args that were passed to
-   * {@link Injector#getInstance}.
-   * @param {...String=} injectedParams names of modules that need to be instantiated and passed as parameters to the
-   * providerFunction at time of instantiation
-   * @returns {Provider} a Provider that can be passed to Injector#moduleGroup as an injectable subject
+   * Whenever the Injector calls the providerFunction, instances for the injectedParams will always be passed in-order
+   * in the argument list to the providerFunction first, followed by all user-supplied args passed to
+   * {@link Injector#getInstance}.  numberOfUserSuppliedArgs defaults to 0 if not specified.
+   * @param {...(String|FactoryFunction)} injectedParams 0-or-more ordered, variable argument set of names of
+   * injectables that must be instantiated by {@link #getInstance} or {@link #FactoryFunction}s that are passed as
+   * arguments to the providerFunction.  When there are 1-or-more injectedParams, then numOfUserSuppliedArgs is
+   * required and must be specified, even if its value is 0.
+   * @template T object type returned from providerFunction
+   * @returns {Provider} a Provider that can be passed to {@link #moduleGroup} as an injectable subject
    */
   createProvider(providerFunction, numOfUserSuppliedArgs) {
-    const dependenciesList = (arguments.length > 2) ? Array.from(arguments).slice(2) : ([]);
-
-    class ProviderImpl extends Provider {
-      constructor() {
-        super(dependenciesList, numOfUserSuppliedArgs);
-      }
-    }
-
-    const provider = new ProviderImpl();
+    const injectedParams = (arguments.length > 2) ? Array.from(arguments).slice(2) : [];
 
     if (injectableMetadata.isProviderFunctionAlreadyRegistered(providerFunction)) {
       throw new Error(`Factory function already registered as a Provider: ${
         InjectorUtils.getFunctionSignature(providerFunction)}`)
     }
 
-    injectableMetadata.setProvider(provider, providerFunction);
-
-    // copy metaObj properties into the metadata object for the provider
-    Object.assign(injectableMetadata.findOrAddMetadataFor(provider), {
-      injectedParams: dependenciesList,
+    const metaObj = {
+      injectedParams,
+      injectedParamTypes: map(injectedParams, (injectedParam, idx) =>
+        this.validateInjectedParam(injectedParam, idx, 'createProvider', `providerFunction: ${
+          InjectorUtils.getFunctionSignature(providerFunction)}`)),
       numberOfUserSuppliedArgs: numOfUserSuppliedArgs,
       eager: false,
       scope: Scope.PROTOTYPE,
       flags: 0
-    });
+    };
+
+    if ((metaObj.injectedParams.length + metaObj.numberOfUserSuppliedArgs) !== providerFunction.length) {
+      throw new Error(`createProvider: providerFunction named argument counts do not match. Expected ${
+        metaObj.injectedParams.length} injectable arguments + ${
+        metaObj.numberOfUserSuppliedArgs} user-supplied arguments, but providerFunction has ${
+        providerFunction.length} named arguments. providerFunction: ${
+        InjectorUtils.getFunctionSignature(providerFunction)}`);
+    }
+
+    class ProviderImpl extends Provider {
+      constructor() {
+        super(metaObj.injectedParams, metaObj.injectedParamTypes, metaObj.numberOfUserSuppliedArgs);
+      }
+    }
+
+    const provider = new ProviderImpl();
+
+    injectableMetadata.setProvider(provider, providerFunction);
+
+    // copy metaObj properties into the metadata object for the provider
+    Object.assign(injectableMetadata.findOrAddMetadataFor(provider), metaObj);
 
     return provider;
   }
@@ -355,11 +438,11 @@ class Injector {
    * Get an instance of named injectable.  If an existing, in-scope object can be found in cache, that instance will be
    * returned rather than a new instance.
    *
-   * @param {String} name instance name
-   * @param {...*=} assistedInjectionParams additional parameters that will get passed to a provider function.  It is an
-   * error to pass assistedInjectionParams if named module is not constructed with a provider.  (See
-   * {@link Injector#createProvider} for more information.)
-   * @returns {*}
+   * @param {String} name injectable name
+   * @param {...*} assistedInjectionParams 0-or-more additional, user-supplied arguments that will get passed to the
+   * provider or constructor function.
+   * @template T
+   * @returns {T} new or cached instance of named injectable as appropriate to the injectable's configured scope
    */
   getInstance(name) {
     const assistedInjectionParams = (arguments.length > 1) ? Array.from(arguments).slice(1) : [];
@@ -443,6 +526,7 @@ class Injector {
    * Recursive internals for getInstance.
    *
    * @private
+   * @ignore
    * @param {String} name
    * @param {Array.<String>} nameHistory stack of injectable names that are used to prevent circular dependencies
    * @param {Array.<Scope>} scopeHistory stack of scopes that match up with names
@@ -488,6 +572,7 @@ class Injector {
    * @param {function(clazz:InjectorClass,injectableMetadata:InjectableMetadata,dependencyGraph:DependencyGraph)} extendFtn
    * @returns {Injector} this Injector, with extensions applied
    * @ignore
+   * @private
    */
   extend(extendFtn) {
     extendFtn(Injector, injectableMetadata, this.dependencyGraph);
@@ -498,6 +583,7 @@ class Injector {
   /**
    * Fail if there are assistedInjectionParams passed to scopes/types that cannot support them
    * @private
+   * @ignore
    */
   static assertAssistedInjectionParamsIsEmpty(scope, type, assistedInjectionParams) {
     if (assistedInjectionParams.length) {
@@ -663,12 +749,17 @@ class Injector {
    * @returns {Object}
    */
   newInjectableInstance(injectable, nameHistory, scopeHistory, assistedInjectionParams) {
-    const params = [];
-
-    for (let j = 0, jj = injectable.injectedParams.length; j < jj; j += 1) {
-      // assistedInjectionParams is never passed along to dependencies, always passing empty set from this point on
-      params.push(this.getInstanceRecursion(injectable.injectedParams[j], nameHistory, scopeHistory, []));
-    }
+    const params = map(injectable.injectedParams, (injectedParam, idx) => {
+      switch (injectable.injectedParamTypes[idx]) {
+        case InjectedParamType.INJECTABLE_NAME:
+          // assistedInjectionParams is never passed along to dependencies, always passing empty set from this point on
+          return this.getInstanceRecursion(injectedParam, nameHistory, scopeHistory, []);
+        case InjectedParamType.FACTORY_FUNCTION:
+          return injectedParam;
+        default:
+          throw new Error(`Unknown InjectableParamType for injectable ${injectable.name}, `)
+      }
+    });
 
     return injectable.newInstance(params, assistedInjectionParams);
   }

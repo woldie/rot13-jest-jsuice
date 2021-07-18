@@ -1,0 +1,12 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="true" type="JavaScriptTestRunnerJest">
+    <config-file value="$PROJECT_DIR$/src/conf/jest.ide.unit.config.js" />
+    <node-interpreter value="project" />
+    <node-options value="" />
+    <working-dir value="" />
+    <jest-options value="--passWithNoTests --silent --verbose" />
+    <envs />
+    <scope-kind value="ALL" />
+    <method v="2" />
+  </configuration>
+</component>

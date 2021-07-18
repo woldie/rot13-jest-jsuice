@@ -3,6 +3,10 @@
 
 const { DefaultReporter } = require('@jest/reporters');
 
+/**
+ * Make the default Jest reporter less chatty, which makes diagnosing test failures easier when looking at the console
+ * after the test run finishes while running tests in watch mode.
+ */
 class Reporter extends DefaultReporter {
   constructor() {
     super(...arguments);

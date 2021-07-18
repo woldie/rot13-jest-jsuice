@@ -5,10 +5,10 @@ module.exports = {
   roots: ['<rootDir>/src'],
   testEnvironment: 'node',
   testMatch: ['<rootDir>/src/**/*.integration.js'],
-  globalSetup: './src/integration/globalSetup.js',
-  globalTeardown: './src/integration/globalTeardown.js',
-  setupFilesAfterEnv: ['./src/integration/setup.js'],
-  moduleDirectories: ['node_modules', 'src'],
+  globalSetup: '<rootDir>/jest.integration.globalSetup.js',
+  globalTeardown: '<rootDir>/jest.integration.globalTeardown.js',
+  setupFilesAfterEnv: ['<rootDir>/jest.integration.setup.js'],
+  moduleDirectories: ['<rootDir>/node_modules', '<rootDir>/src'],
 
   // bails on the build completely if lifecycle hooks like beforeAll throw
   testRunner: 'jest-circus/runner',

@@ -10,15 +10,19 @@ const mockClockConfig = injector.partialMock('clock', (
   mockObj,
   context
 ) => {
-  /** @type {td.DoubledObject<Clock>} */
+  /** @type {Clock} */
   const mockClock = mockObj;
 
   const { now = 0, locale = 'gc-GB', timeZone = 'Australia/Lord_Howe' } = context
-  const fakeTimers = FakeTimers.createClock(now);
+  context.fakeTimers = FakeTimers.createClock(now);
 
   // Install sinon setTimeout
   td.when(mockClock.setTimeout(td.matchers.isA(Function), td.matchers.isA(Number)))
-      .thenDo((fn, timeoutMsec) => fakeTimers.setTimeout(fn, timeoutMsec));
+      .thenDo((fn, timeoutMsec) => context.fakeTimers.setTimeout(fn, timeoutMsec));
+
+  // Install sinon Date.now()
+  td.when(mockClock.now())
+      .thenDo(() => context.fakeTimers.now());
 });
 
 module.exports = mockClockConfig;

@@ -1,7 +1,7 @@
 /* eslint-disable global-require */
 const injector = require('../../sociable-jsuice');
 
-require('../rot13ServiceModuleGroup');
+require('../moduleGroup');
 
 describe('Rot13Router', () => {
   /**

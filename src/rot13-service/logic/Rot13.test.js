@@ -1,6 +1,6 @@
 const injector = require('../../sociable-jsuice');
 
-require('../rot13ServiceModuleGroup');
+require('../moduleGroup');
 
 describe('Rot13', () => {
   /** @type {Rot13} */ let rot13;

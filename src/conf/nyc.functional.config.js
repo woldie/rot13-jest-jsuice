@@ -1,9 +1,9 @@
 // Istanbul coverage configs.  Used in src/integration/globalSetup.ts
 
 module.exports = {
-  cwd: './src',
-  'temp-dir': '../.nyc_integration_temp',
-  'report-dir': '../reports/integration',
+  cwd: `${__dirname}/..`,
+  'temp-dir': '.nyc_integration_temp',
+  'report-dir': 'reports/integration',
 
   cache: false,
   'check-coverage': !process.env.CONFIG_FILE || !/watch/.test(process.env.CONFIG_FILE),

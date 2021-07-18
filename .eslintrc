@@ -43,6 +43,7 @@
       "warn",
       {
         "devDependencies": [
+          "**/conf/*",
           "**/*.test.js",
           "**/sociable-jsuice/**",
           "**/testUtilities/**",
