@@ -1,5 +1,5 @@
 const injector = require('../jsuice');
 
-injector.moduleGroup('rot13Service',
+injector.moduleGroup('rot13Utils',
   'clock', require('./Clock')
 );

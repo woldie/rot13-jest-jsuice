@@ -9,12 +9,10 @@ module.exports = { ...jestUnitTestConfigs,
     [
       `${__dirname}../../node_modules/jest-reporter`,
       {
-        passSound: `${__dirname}/sounds/unit_pass.wav`,
-        failSound: `${__dirname}/sounds/unit_fail.wav`,
-        skipFailSound: false,
+        passSound: 'src/conf/sounds/unit_pass.wav',
+        failSound: 'src/conf/sounds/unit_fail.wav',
         skipFailText: true,
-        skipPassSound: false,
-        skipPassText: true,
+        skipPassText: true
       }
     ]
   ]

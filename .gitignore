@@ -2,3 +2,5 @@
 node_modules
 reports
 build
+logs
+.nyc_functional_temp

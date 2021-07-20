@@ -10,5 +10,21 @@ const injector = require('./jsuice');
   /** @type {Rot13Server} */
   const rot13Server = injector.getInstance('rot13Server');
 
+  const handleTerminationSignal = async (signal) => {
+    console.log(`rot13 server shutdown: ${signal}`);
+
+    // prevent re-entrant termination signal handling
+    process.removeListener('SIGINT', handleTerminationSignal);
+    process.removeListener('SIGTERM', handleTerminationSignal);
+
+    await adminServer.shutdown();
+
+    // graceful termination
+    process.exit();
+  }
+
+  process.on('SIGINT', handleTerminationSignal);
+  process.on('SIGTERM', handleTerminationSignal);
+
   await Promise.all([ adminServer.launch(), rot13Server.launch() ]);
 })();

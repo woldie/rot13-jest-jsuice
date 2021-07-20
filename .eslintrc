@@ -47,7 +47,7 @@
           "**/*.test.js",
           "**/sociable-jsuice/**",
           "**/testUtilities/**",
-          "**/*.integration.js",
+          "**/*.functional.js",
           "**/setup.js",
           "**/globalSetup.js",
           "**/globalTeardown.js"

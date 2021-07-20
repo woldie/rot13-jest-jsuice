@@ -2,10 +2,10 @@ module.exports = {
   clearMocks: true,
   setupFiles: [],
   moduleFileExtensions: ['js', 'json'],
-  roots: ['<rootDir>/src'],
+  roots: [`${__dirname}/..`],
   testEnvironment: 'node',
-  testMatch: ['<rootDir>/src/**/*.test.js'],
-  moduleDirectories: ['<rootDir>/node_modules', '<rootDir>/rc'],
+  testMatch: [`${__dirname}/../**/*.test.js`],
+  moduleDirectories: [`${__dirname}/../../node_modules`, `${__dirname}/..`],
   collectCoverage: false,
   reporters: ['default'],
 

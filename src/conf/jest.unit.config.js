@@ -6,20 +6,19 @@ module.exports = {
   bail: true,
   clearMocks: true,
   moduleFileExtensions: ['js', 'json'],
-  roots: ['<rootDir>/src'],
+  roots: [`${__dirname}/..`],
   testEnvironment: 'node',
-  testMatch: ['<rootDir>/src/**/*.test.js'],
-  setupFilesAfterEnv: ['<rootDir>/jest.unit.setup.js'],
-  moduleDirectories: ['<rootDir>/node_modules', '<rootDir>/src'],
+  testMatch: ['**/*.test.js'],
+  setupFilesAfterEnv: [`${__dirname}/jest.unit.setup.js`],
+  moduleDirectories: [`${__dirname}/../../node_modules`, `${__dirname}/..`],
   collectCoverage: true,
-  coverageDirectory: '<rootDir>/reports/unit',
+  coverageDirectory: `${__dirname}/../../reports/unit`,
   collectCoverageFrom: [
-    '<rootDir>/src/**/*.js',
-    '!<rootDir>/src/rot13-service/AdminServer.js', // entry point module not covered, hard to test, so keep it simple
-    '!<rootDir>/src/rot13-service/Rot13Server.js', // entry point module not covered, hard to test, so keep it simple
-    '!<rootDir>/src/**/*.test.js',
-    '!<rootDir>/src/**/*.functional.js',
-    '!<rootDir>/src/conf/**/*.js',
+    `${__dirname}/../**/*.js`,
+    `!${__dirname}/../serve.js`, // entry point module not covered, hard to test, so keep it simple
+    `!${__dirname}/../**/*.test.js`,
+    `!${__dirname}/../**/*.functional.js`,
+    `!${__dirname}/**/*.js`,
   ],
   coverageReporters: [
     'json-summary', // coverage summary

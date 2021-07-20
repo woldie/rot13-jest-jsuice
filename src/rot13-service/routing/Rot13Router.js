@@ -19,7 +19,7 @@ class Rot13Router {
     typeCheck(arguments, [ HttpRequest ]);
 
     if (request.urlPathname !== '/rot13/transform') return this.rot13Response.notFound();
-    if (request.)
+    // if (request.)
     return null;
   }
 }
