@@ -1,5 +1,5 @@
 /* eslint-disable prefer-rest-params */
-const { typeCheck }  = require('../../rot13-utils/typeCheck');
+const { signatureCheck }  = require('../../rot13-utils/typeCheck');
 const injector = require('../../jsuice');
 const HttpRequest = require('../infrastructure/HttpRequest');
 
@@ -7,23 +7,40 @@ const { Scope } = injector;
 
 class Rot13Router {
   /**
-   * @param {Clock} clock
+   * @param {TimeKeeper} timeKeeper
    * @param {Rot13Response} rot13Response
    */
-  constructor(clock, rot13Response) {
-    this.clock = clock;
+  constructor(timeKeeper, rot13Response) {
+    /**
+     * @name Rot13Router#timeKeeper
+     * @type {TimeKeeper}
+     */
+    this.timeKeeper = timeKeeper;
+
+    /**
+     * @name Rot13Router#rot13Response
+     * @type {Rot13Response}
+     */
     this.rot13Response = rot13Response;
   }
 
   async routeAsync(request) {
-    typeCheck(arguments, [ HttpRequest ]);
+    signatureCheck(arguments, [ HttpRequest ]);
 
-    if (request.urlPathname !== '/rot13/transform') return this.rot13Response.notFound();
-    // if (request.)
+    if (request.getUrlPathname() !== '/rot13/transform') {
+      return this.rot13Response.notFound();
+    }
+    if (request.getMethod() !== 'POST') {
+      return this.rot13Response.methodNotAllowed();
+    }
+    if (!request.hasContentType('application/json')) {
+      return this.rot13Response.badRequest('invalid content-type header');
+    }
+
     return null;
   }
 }
 
-injector.annotateConstructor(Rot13Router, Scope.PROTOTYPE, 'clock', 'rot13Response');
+injector.annotateConstructor(Rot13Router, Scope.PROTOTYPE, 'timeKeeper', 'rot13Response');
 
 module.exports = Rot13Router;

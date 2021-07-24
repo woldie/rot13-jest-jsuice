@@ -1,15 +1,15 @@
 /* eslint-disable prefer-rest-params,no-param-reassign,no-return-await,no-async-promise-executor */
-const { typeCheck }  = require('./typeCheck');
+const { signatureCheck }  = require('./typeCheck');
 const injector = require('../jsuice');
 
 const { Scope, Flags } = injector;
 
-class Clock {
+class TimeKeeper {
   /**
    * @returns {number}
    */
   now() {
-    typeCheck(arguments, []);
+    signatureCheck(arguments, []);
     return Date.now();
   }
 
@@ -45,7 +45,7 @@ class Clock {
     if (locale === undefined) {
       throw new Error("Must specify locale (use 'local' for computer's default locale)");
     }
-    typeCheck(arguments, [ Object, String ]);
+    signatureCheck(arguments, [ Object, String ]);
 
     const options = { ...intlDateTimeFormatOptions };
     if (options.timeZone === 'local') delete options.timeZone;
@@ -57,7 +57,7 @@ class Clock {
   }
 
   async waitAsync(milliseconds) {
-    typeCheck(arguments, [ Number ]);
+    signatureCheck(arguments, [ Number ]);
 
     await new Promise(resolve => {
       this.setTimeout(resolve, milliseconds);
@@ -65,7 +65,7 @@ class Clock {
   }
 
   async timeoutAsync(milliseconds, promiseToWaitFor, timeoutFnAsync) {
-    typeCheck(arguments, [ Number, Promise, Function ]);
+    signatureCheck(arguments, [ Number, Promise, Function ]);
 
     return await new Promise(async (resolve, reject) => {
       const cancelToken = this.setTimeout(async () => {
@@ -92,6 +92,6 @@ class Clock {
   }
 }
 
-injector.annotateConstructor(Clock, Scope.SINGLETON + Flags.BOUNDARY);
+injector.annotateConstructor(TimeKeeper, Scope.SINGLETON + Flags.INFRASTRUCTURE);
 
-module.exports = Clock;
+module.exports = TimeKeeper;

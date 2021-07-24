@@ -7,9 +7,9 @@ const forEach = require('lodash.foreach');
  * @readonly
  * @public
  *
- * @property {Number} SINGLETON
- * @property {Number} APPLICATION
- * @property {Number} PROTOTYPE
+ * @property {Scope} SINGLETON
+ * @property {Scope} APPLICATION
+ * @property {Scope} PROTOTYPE
  */
 const Scope = {};
 

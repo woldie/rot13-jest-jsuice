@@ -3,9 +3,9 @@
 const { FakeTimers } = require('@sinonjs/fake-timers');
 const td = require('testdouble');
 const injector = require('../sociable-jsuice');
-const Clock = require('./Clock');
+const Clock = require('./TimeKeeper');
 
-const mockClockConfig = injector.partialMock('clock', (
+const mockClockConfig = injector.partialMock('timeKeeper', (
   injectableName,
   mockObj,
   context

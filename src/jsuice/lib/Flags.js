@@ -6,16 +6,24 @@ const forEach = require('lodash.foreach');
  * @enum {Number}
  * @readonly
  * @public
- * @property {Number} BOUNDARY The boundary flag indicates that a module marks a boundary or integration point within
- * your software system.  During testing, modules marked with the boundary flag will automatically be instantiated as
- * a testdouble mock unless the boundary module is also selected as the system under test.
+ * @property {Number} INFRASTRUCTURE The infrastructure flag indicates that a module marks an infrastructure point, or
+ * integration point within your software system to another software system.  During test runs, injectables marked with
+ * the {@link #INFRASTRUCTURE} flag will automatically be instantiated with all of its enumerable methods replaced with
+ * testdouble mocks unless the infrastructure injectable is also selected to be system under test by
+ * {@link Injector#collaborators}.  The type of testdouble mock created depends on the JSUICE_ENV environment variable
+ * setting.  If the <code>JSUICE_ENV</code> environment variable is set to <code>sociable</code>, then all
+ * {@link #INFRASTRUCTURE} injectables will be instantiated with fully mocked enumerable methods.  Any other
+ * <code>JSUICE_ENV</code> setting (see {@link InjectorEnvironment} for all possible values) will cause
+ * {@link #INFRASTRUCTURE} injectables to be instantiated with partially-mocked enumerable methods:  spies that proxy
+ * to the 'real' function they are set to mock by default unless configured otherwise in {@link Injector#collaborators}
+ * or {@link Injector#environmentSetup}.)
  * @property {Number} EAGER The eager flag indicates that an injectable should be instantiated as soon as the injector
  * is able.
  */
 const Flags = {};
 
 forEach({
-  'BOUNDARY': 64,
+  'INFRASTRUCTURE': 64,
   'EAGER': 128
 }, (value, key) => {
   Object.defineProperty(Flags, key, {

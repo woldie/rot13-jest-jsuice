@@ -1,5 +1,5 @@
-/* eslint-disable no-bitwise,prefer-rest-params,no-param-reassign,prefer-spread,no-underscore-dangle,no-unused-vars */
-// noinspection JSBitwiseOperatorUsage
+/* eslint-disable no-bitwise,prefer-rest-params,no-param-reassign,prefer-spread,no-underscore-dangle,no-unused-vars,func-names */
+// noinspection JSBitwiseOperatorUsage,JSCommentMatchesSignature
 
 const td = require('testdouble');
 const forEach = require('lodash.foreach');
@@ -7,23 +7,23 @@ const reduce = require('lodash.reduce');
 const map = require('lodash.map');
 const keys = require('lodash.keys');
 const has = require('lodash.has');
+const isArray = require('lodash.isarray');
 const isFunction = require('lodash.isfunction');
+const isUndefined = require('lodash.isundefined');
 const classInfo = require('class-info');
 const injector = require('../jsuice');
 const Scope = require('../jsuice/lib/Scope');
 const InjectableType = require('../jsuice/lib/InjectableType');
-const { SystemUnderTest, MockCollaborator, PartialMockCollaborator, TestCollaborators } = require('./lib/Types');
+const SystemUnderTest = require('./lib/SystemUnderTest');
+const PartialMockCollaborator = require('./lib/PartialMockCollaborator');
+const MockCollaborator = require('./lib/MockCollaborator');
+const InjectorEnvironment = require('./lib/InjectorEnvironment');
+const TestCollaborators = require('./lib/TestCollaborators');
+const Injector = require('../jsuice/lib/Injector');
 
 let collaboratorSetupCalled = false;
 
-/**
- * @class Injector
- */
-
-/**
- * @type {Injector}
- */
-const sociableInjector = injector.extend((Injector, injectableMetadata, dependencyGraph) => {
+const sociableInjector = injector.applyExtensions((injectableMetadata, dependencyGraph) => {
   const realGetInstanceForInjectable = Injector.prototype.getInstanceForInjectable;
 
   let testCollaborators = null;
@@ -38,6 +38,15 @@ const sociableInjector = injector.extend((Injector, injectableMetadata, dependen
    * @type {{__uninitialized__: boolean}}
    */
   const UNINITIALIZED = { '__uninitialized__': true };
+
+  const jsuiceEnv = process.env.JSUICE_ENV;
+  const validEnvKeys = map(keys(InjectorEnvironment), key => key.toLowerCase());
+  if (isUndefined(jsuiceEnv) || validEnvKeys.indexOf(jsuiceEnv.toLowerCase()) < 0) {
+    throw new Error(`JSUICE_ENV environment variable required in test runner process with one of the following: ${
+      validEnvKeys}`);
+  }
+  const jsuiceEnvironmentName = jsuiceEnv.toUpperCase();
+  const jsuiceEnvironment = InjectorEnvironment[jsuiceEnvironmentName];
 
   /**
    * @param {Object} instanceTracker
@@ -76,7 +85,7 @@ const sociableInjector = injector.extend((Injector, injectableMetadata, dependen
       const spyMethod = td.replace(clazz.prototype, instanceMethodName, td.function(instanceMethodName));
 
       td.when(spyMethod(), {ignoreExtraArgs: true})
-        .thenDo(() => realMethod.apply(this, Array.from(arguments)));
+        .thenDo(function() { return realMethod.apply(this, Array.from(arguments)); }); // DO NOT use fat arrow here
     });
 
     forEach(typeInfo.staticMethods, staticMethodName => {
@@ -84,7 +93,7 @@ const sociableInjector = injector.extend((Injector, injectableMetadata, dependen
       const spyMethod = td.replace(clazz, staticMethodName, td.function(staticMethodName));
 
       td.when(spyMethod(), {ignoreExtraArgs: true})
-        .thenDo(() => realMethod.apply(clazz, Array.from(arguments)));
+        .thenDo(function () { return realMethod.apply(clazz, Array.from(arguments)); }); // DO NOT use fat arrow here
     });
 
     clazz.__isSpy = true;
@@ -93,16 +102,20 @@ const sociableInjector = injector.extend((Injector, injectableMetadata, dependen
   }
 
   /**
+   * Mocking override for internal method {@link Injector#getInstanceForInjectable}
+   *
+   * @memberOf Injector.prototype
    * @param {Injectable} injectable
    * @param {Array.<String>=} nameHistory stack of injectable names that are used to prevent circular dependencies
    * @param {Array.<Scope>=} scopeHistory stack of scopes that match up with names
    * @param {Array.<*>=} assistedInjectionParams additional user-supplied parameters that will be passed to
    * @returns {(*|td.DoubledObject<*>)}
+   * @this {Injector}
    * @protected
    * @ignore
    */
-  Injector.prototype.getInstanceForInjectable = (injectable, nameHistory, scopeHistory,
-                                                 assistedInjectionParams) => {
+  Injector.prototype.getInstanceForInjectable = function(injectable, nameHistory, scopeHistory,
+                                                         assistedInjectionParams) {
     if (!collaboratorSetupCalled) {
       throw new Error('Call injector.collaborators before trying to construct instances with the injector');
     }
@@ -169,11 +182,12 @@ const sociableInjector = injector.extend((Injector, injectableMetadata, dependen
   /**
    * This function is our chance to discover what objects need to be shadowed for the current test.
    *
+   * @memberOf Injector.prototype
    * @param {...Collaborator} collaboratorDescriptors
    * @returns {Array.<*>} List of instantiated collaborators ordered the same way as collaboratorDescriptors
    * @public
    */
-  Injector.prototype.collaborators = (collaboratorDescriptors) => {
+  Injector.prototype.collaborators = function(collaboratorDescriptors) {
     collaboratorSetupCalled = true;
 
     testCollaborators = TestCollaborators.create(
@@ -214,27 +228,44 @@ const sociableInjector = injector.extend((Injector, injectableMetadata, dependen
 
       accumulator.collaboratorsAndDependencies[collaboratorName] = shadowedReal[collaboratorName] === UNINITIALIZED ?
         injector.getInstance.apply(injector, [ collaboratorName, ...assistedInjectionParams ]) :
-        shadowedReal[collaboratorName];
+
+        // TODO: these "shadowed" containers are really meant to capture the SUT and its dependencies as they are
+        //  instantiated, and only while collaborators is running.  They should be captured in the
+        //  getInstanceForInjectable, not here.  And we should sort the injectable names by dependent order here so
+        //  that we get capture the dependencies from bottom up.  Also, factory functions should not be allowed to be
+        //  re-entrant with getInstance - they must be called standalone or else we risk getting weird circular
+        //  dependencies.
+        shadowedReal[collaboratorName][0];
+
+      return accumulator;
     }, {
       collaboratorsAndDependencies
     });
 
     reduce(shadowedPartialMocked, (accumulator, value, collaboratorName) => {
       if (shadowedPartialMocked[collaboratorName] === UNINITIALIZED) {
-        const collabConfig = testCollaborators.partialMocks[collaboratorName];
-        const partialMock = injector.getInstance.apply(injector, [
-          collaboratorName,
-          ...collabConfig.assistedInjectionParams
-        ]);
 
-        if (collabConfig && collabConfig.customizer) {
-          collabConfig.customizer(collaboratorName, partialMock);
+        if (has(testCollaborators.factoryFunctions, collaboratorName)) {
+          accumulator.collaboratorsAndDependencies[collaboratorName] =
+            testCollaborators.factoryFunctions[collaboratorName];
+        } else {
+          const collabConfig = testCollaborators.partialMocks[collaboratorName];
+          const partialMock = injector.getInstance.apply(injector, [
+            collaboratorName,
+            ...collabConfig.assistedInjectionParams
+          ]);
+
+          if (collabConfig && collabConfig.customizer) {
+            collabConfig.customizer(collaboratorName, partialMock);
+          }
+
+          accumulator.collaboratorsAndDependencies[collaboratorName] = partialMock;
         }
-
-        accumulator.collaboratorsAndDependencies[collaboratorName] = partialMock;
       } else {
         accumulator.collaboratorsAndDependencies[collaboratorName] = shadowedPartialMocked[collaboratorName];
       }
+
+      return accumulator;
     }, {
       collaboratorsAndDependencies
     });
@@ -252,19 +283,22 @@ const sociableInjector = injector.extend((Injector, injectableMetadata, dependen
       } else {
         accumulator.collaboratorsAndDependencies[collaboratorName] = shadowedMocked[collaboratorName];
       }
+
+      return accumulator;
     }, {
       collaboratorsAndDependencies
     });
 
     // return only the requested collaborators in the order they were requested
-    return map(testCollaborators.collaboratorNames, (name) => collaboratorsAndDependencies[name]);
+    return map(testCollaborators.collaboratorNames, name => collaboratorsAndDependencies[name]);
   };
 
   /**
+   * @memberOf Injector.prototype
    * @returns {Object.<String,*>} context object
    * @public
    */
-  Injector.prototype.getInjectorContext = () => {
+  Injector.prototype.getInjectorContext = function() {
     if (testCaseContext === null) {
       throw new Error("An injector context is available only when a test is running");
     }
@@ -274,6 +308,7 @@ const sociableInjector = injector.extend((Injector, injectableMetadata, dependen
   /**
    * Configures {@link injector#collaborators} to return a mock for injectableName.
    *
+   * @memberOf Injector.prototype
    * @param {String} injectableName name of the injectable that you want the injector to mock
    * @param {?function(injectableName:String,mockObj:td.DoubledObject<*>,context:Object<String,*>)} customizer
    * optional callback that gets called with the mockObj created to mimic injectableName's injectable.  You may
@@ -282,12 +317,13 @@ const sociableInjector = injector.extend((Injector, injectableMetadata, dependen
    * context is an object created for each test case that is passed to the customizer functions and that can be
    * used to share state between the test and mocks.
    * @returns {MockCollaborator} the configuration for a mock that can be passed to {@link Injector#collaborators}
+   * @this {Injector}
    * @public
    */
-  Injector.prototype.mockConfig = (injectableName, customizer) => {
+  Injector.prototype.mockConfig = function(injectableName, customizer) {
     const context = this.getInjectorContext();
     if (customizer) {
-      return new MockCollaborator(injectableName, (mockObj) => {
+      return new MockCollaborator(injectableName, mockObj => {
         customizer(injectableName, mockObj, context);
       });
     }
@@ -302,6 +338,7 @@ const sociableInjector = injector.extend((Injector, injectableMetadata, dependen
    * with {@link https://github.com/testdouble/testdouble.js#tdwhen-for-stubbing-responses td.when}, these
    * td.functions will call through to real injectable instance - essentially acting as a spy.
    *
+   * @memberOf Injector.prototype
    * @param {String} injectableName name of the injectable that you want the injector to partial mock
    * @param {?function(injectableName:String,mockObj:td.DoubledObject<*>,context:Object<String,*>)} customizer
    * optional callback that gets called with the mockObj created to mimic injectableName's injectable.  You may
@@ -316,7 +353,7 @@ const sociableInjector = injector.extend((Injector, injectableMetadata, dependen
    * {@link Injector#collaborators}
    * @public
    */
-  Injector.prototype.partialMock = (injectableName, customizer) => {
+  Injector.prototype.partialMock = function(injectableName, customizer) {
     const args = Array.from(arguments);
 
     if (args.length > 1 && !isFunction(customizer)) {
@@ -326,8 +363,8 @@ const sociableInjector = injector.extend((Injector, injectableMetadata, dependen
     const assistedInjectionParams = (args.length > 2) ? args.slice(2) : [];
 
     if (customizer) {
-      const context = this.getInjectorContext();
-      return new PartialMockCollaborator(injectableName, assistedInjectionParams, (mockObj) => {
+      const context = injector.getInjectorContext();
+      return new PartialMockCollaborator(injectableName, assistedInjectionParams, mockObj => {
         customizer(injectableName, mockObj, context);
       });
     }
@@ -335,11 +372,96 @@ const sociableInjector = injector.extend((Injector, injectableMetadata, dependen
     return new PartialMockCollaborator(injectableName, assistedInjectionParams);
   };
 
-  Injector.prototype.systemUnderTest = (injectableName) => {
+  /**
+   * @memberOf Injector.prototype
+   * @param injectableName
+   * @returns {SystemUnderTest}
+   */
+  Injector.prototype.systemUnderTest = function(injectableName) {
     const assistedInjectionParams = Array.from(arguments).slice(1);
 
     return new SystemUnderTest(injectableName, assistedInjectionParams);
-  }
+  };
+
+  /**
+   * If the current JSUICE_ENV matches whichEnvironment, then configurator will be run immediately.  Otherwise, no
+   * action is taken.  Place calls to {@link #environmentTeardown} at the top of your test as a pre-condition or in a
+   * <code>beforeEach</code> block to do environment-specific mock configurations or data source configurations.
+   *
+   * @memberOf Injector.prototype
+   * @param {(Array.<InjectorEnvironment>|InjectorEnvironment)} whichEnvironment
+   * @param {function(whichEnvironment:InjectorEnvironment)} configurator
+   */
+  Injector.prototype.environmentSetup = function(whichEnvironment, configurator) {
+    const envArray = isArray(whichEnvironment) ? whichEnvironment : [ whichEnvironment ];
+    if (envArray.indexOf(jsuiceEnvironment) >= 0 && isFunction(configurator)) {
+      configurator(jsuiceEnvironment);
+    }
+  };
+
+  /**
+   * If the current JSUICE_ENV matches whichEnvironment, then configurator will be run immediately.  Otherwise, no
+   * action is taken.  Place calls to {@link #environmentTeardown} at the bottom of your test as a post-condition or in
+   * a <code>afterEach</code> block to do environment-specific teardown or assertions.
+   *
+   * @memberOf Injector.prototype
+   * @param {(Array.<InjectorEnvironment>|InjectorEnvironment)} whichEnvironment
+   * @param {function(whichEnvironment:InjectorEnvironment)} configurator
+   */
+  Injector.prototype.environmentTeardown = function(whichEnvironment, configurator) {
+    const envArray = isArray(whichEnvironment) ? whichEnvironment : [ whichEnvironment ];
+    if (envArray.indexOf(jsuiceEnvironment) >= 0 && isFunction(configurator)) {
+      configurator(jsuiceEnvironment);
+    }
+  };
+
+  /**
+   * This is an extension of the base Injector's factoryFunction method to allow tests to generate default parameters
+   * for assisted injections so that individual tests need not repeatedly do so.
+   *
+   * @memberOf Injector.prototype
+   * @param {String} injectableName
+   * @param {...function():*} assistedInjectionDefaultParams 0-or-more functions for generating default assisted
+   * injection parameters for injectableName
+   * @returns {FactoryFunction}
+   */
+  Injector.prototype.factoryFunction = function(injectableName) {
+    const self = this;
+
+    const assistedInjectionDefaults = (arguments.length > 1) ? Array.from(arguments).slice(1) : [];
+
+    /**
+     * @param {...*} userSuppliedArgs
+     */
+    function theFactory() {
+      const userSuppliedArgs = Array.from(arguments);
+      const overlaidAtopDefaults = [];
+
+      for (let i = 0, ii = Math.max(assistedInjectionDefaults.length, userSuppliedArgs.length); i < ii; i += 1) {
+        if (userSuppliedArgs.length > i) {
+          overlaidAtopDefaults.push(userSuppliedArgs[i]);
+        } else {
+          const defaultCb = assistedInjectionDefaults[i];
+          if (!isFunction(defaultCb)) {
+            throw new Error(`factoryFunction for injectable ${
+              injectableName} received an assistedInjectionDefaultParam that was not a function`);
+          }
+          overlaidAtopDefaults.push(defaultCb());
+        }
+      }
+
+      return self.getInstance.apply(self, [injectableName, ...overlaidAtopDefaults]);
+    }
+
+    self.isFactoryFunction.set(theFactory, injectableName);
+
+    return theFactory;
+  };
+
+  /**
+   * @memberOf Injector.prototype
+   */
+  Injector.prototype.InjectorEnvironment = InjectorEnvironment;
 
   beforeEach(() => {
     collaboratorSetupCalled = false;
@@ -360,6 +482,8 @@ const sociableInjector = injector.extend((Injector, injectableMetadata, dependen
     shadowedMocked = {};
     testCaseContext = null;
   });
+
+  return injector;
 });
 
 module.exports = sociableInjector;

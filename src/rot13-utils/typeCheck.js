@@ -2,7 +2,7 @@
 const type = require('./type');
 
 module.exports = {
-  typeCheck: (args, signature, names) => {
+  signatureCheck: (args, signature, names) => {
     checkSignature(false, args, signature, names);
   }
 };

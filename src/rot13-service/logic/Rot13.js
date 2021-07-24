@@ -2,7 +2,7 @@
 const join = require('lodash.join');
 const map = require('lodash.map');
 const GraphemeSplitter = require('grapheme-splitter');
-const { typeCheck } = require('../../rot13-utils/typeCheck');
+const { signatureCheck } = require('../../rot13-utils/typeCheck');
 const injector = require('../../jsuice');
 
 const { Scope } = injector;
@@ -39,7 +39,7 @@ class Rot13 {
    * @returns {String}
    */
   transform(input) {
-    typeCheck(arguments, [ String ]);
+    signatureCheck(arguments, [ String ]);
 
     return join(map(splitOnGraphemes(input), grapheme => transformGrapheme(grapheme)), '');
   }

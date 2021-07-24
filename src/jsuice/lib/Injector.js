@@ -80,7 +80,7 @@ class Injector {
      * Injector arbitrary functions that it will call.
      *
      * @name Injector#isFactoryFunction
-     * @type {WeakMap<Function, Boolean>}
+     * @type {WeakMap<Function, String>}
      * @package
      * @ignore
      */
@@ -207,16 +207,26 @@ class Injector {
   }
 
   /**
+   * @template T
+   * @typedef {typeof T} GenericConstructor
+   */
+
+  /**
+   * @template T
+   * @typedef {Function & GenericConstructor<T>} InjectableCtor
+   */
+
+  /**
    * Annotate a constructor function with metadata that instructs the injector what the scope, injectedParams and
    * other configuration flags should be when it instantiates using that constructor.  With the annotations, the
    * constructor is converted into a jsuice injectable that can then be added to a module group using
    * {@link #moduleGroup}.
    *
-   * @param {Function & typeof T} ctor constructor function.  injectedParams.length + numberOfUserSuppliedArgs must exactly equal
-   * the number of named parameters on the ctor function
+   * @param {InjectableCtor<T>} ctor constructor function to be used with the <code>new</code> keyword.
+   * injectedParams.length + numberOfUserSuppliedArgs must exactly equal the number of named parameters on ctor
    * @param {Number=} flags optional integer containing flag constants that describe what the scope and configuration
    * flags should be for the constructor.  Valid flag constants are {@link #Scope.APPLICATION},
-   * {@link #Scope.SINGLETON}, {@link #Scope.PROTOTYPE}, {@link #Flags.EAGER} and {@link #Flags.BOUNDARY}.  Use
+   * {@link #Scope.SINGLETON}, {@link #Scope.PROTOTYPE}, {@link #Flags.EAGER} and {@link #Flags.INFRASTRUCTURE}.  Use
    * bitwise-OR or the plus operator to union flag constants together into one flags value.
    * @param {Number=} numberOfUserSuppliedArgs optional positive integer describing how many extra parameters will the
    * user pass to the constructor in addition to the ones supplied by the injector.  numberOfUserSuppliedArgs defaults
@@ -317,7 +327,7 @@ class Injector {
       throw new Error("Eager flag is only permitted on the SINGLETON and APPLICATION scopes");
     }
 
-    if (flags - Flags.BOUNDARY > 0) {
+    if (flags - Flags.INFRASTRUCTURE > 0) {
       throw new Error("Unknown flags");
     }
 
@@ -342,12 +352,13 @@ class Injector {
    */
 
   /**
-   * Creates a factory function for injectableName that may be passed to {@link #annotateConstructor} or
-   * {@link #createProvider}.  The factory function is useful in assisted injection scenarios where
-   * {@link #Scope.PROTOTYPE} objects need to be created at-will that are instantiated with injectables from both the
-   * {@link Injector} and the user.
+   * Creates a factory function for injectableName can be passed to {@link #annotateConstructor} or
+   * {@link #createProvider} to describe an injectable parameter.  A factory function is useful in assisted injection
+   * scenarios where {@link #Scope.PROTOTYPE} objects need to be created at-will that are instantiated with injectables
+   * from both the {@link Injector} and the user.  The factory function will be passed verbatim to any instantiated
+   * injectables that take it as constructor parameter.
    *
-   * @param injectableName
+   * @param {String} injectableName
    * @returns {FactoryFunction}
    */
   factoryFunction(injectableName) {
@@ -356,16 +367,23 @@ class Injector {
     /**
      * @param {...*} userSuppliedArgs
      */
-    function factoryFunction() {
+    function theFactory() {
       const userSuppliedArgs = Array.from(arguments);
 
       return self.getInstance.apply(self, [injectableName, ...userSuppliedArgs]);
     }
 
-    self.isFactoryFunction.set(factoryFunction, true);
+    self.isFactoryFunction.set(theFactory, injectableName);
 
-    return factoryFunction;
+    return theFactory;
   }
+
+  /**
+   * @typedef {Function} ProviderFunction
+   * @param {...*} params
+   * @returns {T}
+   * @template T
+   */
 
   /**
    * Create a Provider that wraps a function for acquiring an object instance.  The Provider is suitable for passing to
@@ -376,7 +394,7 @@ class Injector {
    * wrapped with a Promise.  In that case, providerFunction would return a Promise to the item and the user would
    * be required to wait on the Promise to get access to the injectable instance.
    *
-   * @param {function(params: ...*): T} providerFunction a function that takes injectedParams plus optional
+   * @param {ProviderFunction<T>} providerFunction a function that takes injectedParams plus optional
    * user-supplied arguments and returns an object.  injectedParams.length + numOfUserSuppliedArgs must exactly equal
    * the number of named parameters on the providerFunction.
    * @param {Number} numOfUserSuppliedArgs optional number of parameters that are expected to be passed from calls to
@@ -561,23 +579,21 @@ class Injector {
   }
 
   /**
-   * @typedef {typeof Injector} InjectorClass
-   * @ignore
+   * @typedef {Function} JsuiceExtendCb
+   * @param {InjectableMetadata} injectableMetadata
+   * @param {DependencyGraph} dependencyGraph
+   * @returns {Injector} extended injector
    */
 
   /**
    * Call user-supplied callback that can extend the injector and its constructor/prototype with additional
    * functionality.
    *
-   * @param {function(clazz:InjectorClass,injectableMetadata:InjectableMetadata,dependencyGraph:DependencyGraph)} extendFtn
-   * @returns {Injector} this Injector, with extensions applied
+   * @param {JsuiceExtendCb} extendFtn
    * @ignore
-   * @private
    */
-  extend(extendFtn) {
-    extendFtn(Injector, injectableMetadata, this.dependencyGraph);
-
-    return this;
+  applyExtensions(extendFtn) {
+    return extendFtn(injectableMetadata, this.dependencyGraph);
   }
 
   /**

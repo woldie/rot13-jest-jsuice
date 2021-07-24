@@ -4,7 +4,7 @@ module.exports = {
   moduleFileExtensions: ['js', 'json'],
   roots: [`${__dirname}/..`],
   testEnvironment: 'node',
-  testMatch: [`${__dirname}/../**/*.test.js`],
+  testMatch: ['**/*.test.js'],
   moduleDirectories: [`${__dirname}/../../node_modules`, `${__dirname}/..`],
   collectCoverage: false,
   reporters: ['default'],

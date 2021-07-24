@@ -1,24 +1,24 @@
 /* eslint-disable prefer-rest-params */
-const { typeCheck }  = require('../../rot13-utils/typeCheck');
+const { signatureCheck }  = require('../../rot13-utils/typeCheck');
 
 class Rot13Response {
   ok(output) {
-    typeCheck(arguments,[ String ]);
+    signatureCheck(arguments,[ String ]);
     return response(200, { transformed: output });
   }
 
   notFound() {
-    typeCheck(arguments,[]);
+    signatureCheck(arguments,[]);
     return errorResponse(404, 'not found');
   }
 
   methodNotAllowed() {
-    typeCheck(arguments,[]);
+    signatureCheck(arguments,[]);
     return errorResponse(405, 'method not allowed');
   }
 
   badRequest(errorMessage) {
-    typeCheck(arguments,[ String ]);
+    signatureCheck(arguments,[ String ]);
     return errorResponse(400, errorMessage);
   }
 }
