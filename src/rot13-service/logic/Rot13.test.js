@@ -6,11 +6,7 @@ describe('Rot13', () => {
   /** @type {Rot13} */ let rot13;
 
   beforeEach(() => {
-    const collaborators = injector.collaborators({
-      SUT: 'rot13'
-    });
-
-    rot13 = collaborators.rot13;
+    [ rot13 ] = injector.collaborators(injector.systemUnderTest('rot13'));
   });
 
   it('does nothing when input is empty', () => {

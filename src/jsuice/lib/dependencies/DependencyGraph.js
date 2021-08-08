@@ -57,6 +57,7 @@ class DependencyGraph {
   }
 
   /**
+   * @name DependencyGraph#findOrCreateVertexBySearchQuery
    * @param {GraphVertex} graphVertex
    * @returns {GraphVertex}
    * @private
@@ -73,6 +74,7 @@ class DependencyGraph {
   }
 
   /**
+   * @name DependencyGraph#findOrCreateInjectableVertex
    * @param {String} name injectable name
    * @param {Injectable=} injectable injectable (can be undefined if you don't have it)
    * @returns {InjectableVertex} injectable vertex in the graph
@@ -92,6 +94,7 @@ class DependencyGraph {
   }
 
   /**
+   * @name DependencyGraph#findOrCreateModuleGroupVertex
    * @param {String} name module group name
    * @returns {ModuleGroupVertex} module group vertex in the graph
    * @package
@@ -105,6 +108,7 @@ class DependencyGraph {
   }
 
   /**
+   * @name DependencyGraph#findOrAddEdgeBetwixtVertices
    * @param {GraphVertex} outVertex
    * @param {GraphVertex} inVertex
    * @param {String} edgeLabel searchable name for the edge
@@ -126,6 +130,7 @@ class DependencyGraph {
 
   /**
    * Build an association between an injectable and its name and build a vertex for the subject
+   * @name DependencyGraph#associateInjectableWithModuleGroup
    * @param {Injectable} injectable the injectable module
    * @param {String} moduleGroupName the name of the module group
    * @returns {GroupInjectableAssoc} association between injectable and group
@@ -148,6 +153,7 @@ class DependencyGraph {
   }
 
   /**
+   * @name DependencyGraph#associateConstructionParameterWithInjectable
    * @param {Injectable} injectable
    * @param {String} paramName
    * @returns {InjectableParamAssoc}
@@ -175,6 +181,7 @@ class DependencyGraph {
    * <p>whichInjectable and all its dependencies and descendants must a valid injectable that is already in the graph
    * when this method is called.
    *
+   * @name DependencyGraph#getAllDependenciesAndDescendants
    * @param {String} whichInjectable Name of injectable for whom we will search for all dependencies and descendants
    * @returns {Array.<InjectableVertex>} vertexes of Injectables that are dependencies and descendants
    * @package
@@ -195,6 +202,7 @@ class DependencyGraph {
   }
 
   /**
+   * @name DependencyGraph#recurseAllDependenciesAndDescendants
    * @param {Array.<InjectableVertex>} dependencies
    * @param {InjectableVertex} vertex
    * @private

@@ -11,7 +11,7 @@ describe('HttpRequest', () => {
     let httpRequest;
 
     /**
-     * @type {module:http.IncomingMessage}
+     * @type {NodeRequest}
      */
     let nodeRequest;
 

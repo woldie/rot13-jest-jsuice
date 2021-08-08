@@ -8,6 +8,7 @@ const InjectableType = require("./InjectableType");
 const Scope = require("./Scope");
 const Provider = require("./Provider");
 const injectableMetadata = require("./injectableMetadata");
+const InjectedParamType = require('./InjectedParamType');
 
 describe("injectable", () => {
   afterEach(() => {
@@ -91,7 +92,10 @@ describe("injectable", () => {
 
   it("[constructor] will create a new PROVIDER, PROTOTYPE if subject is instanceof Provider", () => {
     // GIVEN a Provider
-    const provider = new MyProvider(["dependency1", "dependency2"], 3);
+    const provider = new MyProvider(
+      ['dependency1', 'dependency2'],
+      [ InjectedParamType.INJECTABLE_NAME, InjectedParamType.INJECTABLE_NAME ],
+      3);
 
     // WHEN I call constructor
     const injectable = new Injectable(provider, "myProvider");
@@ -174,7 +178,7 @@ describe("injectable", () => {
   });
 
   it("[newInstance] will create a new instance by way of the factory function for PROVIDER", () => {
-    const myProvider = new MyProvider([], 0);
+    const myProvider = new MyProvider([], [], 0);
     injectableMetadata.setProvider(myProvider, () => ({ aField: "hi there" }));
 
     const factoryInjectable = new Injectable(myProvider, "myProvider");
@@ -185,7 +189,7 @@ describe("injectable", () => {
   });
 
   it("[newInstance] will create a new PROVIDER instance that requires additionalInjectionParams", () => {
-    const myProvider = new MyProvider([], 2);
+    const myProvider = new MyProvider([], [], 2);
     injectableMetadata.setProvider(myProvider, (injected1, injected2, assisted1, assisted2) => ({
       aField: `hi there ${injected1} ${injected2} ${assisted1} ${assisted2}`
     }));
@@ -205,7 +209,7 @@ describe("injectable", () => {
   }
 
   it("[newInstance] will throw an error while creating a new PROVIDER with wrong number of addl parameters passed", () => {
-    const myProvider = new MyProvider([], 1);
+    const myProvider = new MyProvider([], [], 1);
     injectableMetadata.setProvider(myProvider, threeParamFactoryFunction);
 
     const factoryInjectable = new Injectable(myProvider, "myProvider");

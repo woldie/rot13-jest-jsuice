@@ -5,6 +5,7 @@ module.exports = {
   roots: [`${__dirname}/..`],
   testEnvironment: 'node',
   testMatch: ['**/*.test.js'],
+  setupFilesAfterEnv: ['jest-expect-message', `${__dirname}/jest.unit.setup.js`],
   moduleDirectories: [`${__dirname}/../../node_modules`, `${__dirname}/..`],
   collectCoverage: false,
   reporters: ['default'],

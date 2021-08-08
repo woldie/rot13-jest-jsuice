@@ -2,15 +2,23 @@
 const { signatureCheck }  = require('./typeCheck');
 const injector = require('../jsuice');
 
-const { Scope, Flags } = injector;
+const { Scope } = injector;
 
 class TimeKeeper {
+  constructor(clockWrap) {
+    /**
+     * @name TimeKeeper#clockWrap
+     * @type {ClockWrap}
+     */
+    this.clockWrap = clockWrap;
+  }
+
   /**
    * @returns {number}
    */
   now() {
     signatureCheck(arguments, []);
-    return Date.now();
+    return this.clockWrap.Date.now();
   }
 
   /**
@@ -19,7 +27,7 @@ class TimeKeeper {
    * @returns {Intl.DateTimeFormat}
    */
   dateTimeFormat(locales, options) {
-    return Intl.DateTimeFormat(locales, options);
+    return this.clockWrap.DateTimeFormat(locales, options);
   }
 
   /**
@@ -28,14 +36,14 @@ class TimeKeeper {
    * @returns {NodeJS.Timeout}
    */
   setTimeout(fn, milliseconds) {
-    return setTimeout(fn, milliseconds);
+    return this.clockWrap.setTimeout(fn, milliseconds);
   }
 
   /**
    * @param {NodeJS.Timeout} timeoutId
    */
   clearTimeout(timeoutId) {
-    clearTimeout(timeoutId);
+    this.clockWrap.clearTimeout(timeoutId);
   }
 
   toFormattedString(intlDateTimeFormatOptions, locale) {
@@ -92,6 +100,4 @@ class TimeKeeper {
   }
 }
 
-injector.annotateConstructor(TimeKeeper, Scope.SINGLETON + Flags.INFRASTRUCTURE);
-
-module.exports = TimeKeeper;
+module.exports = injector.annotateConstructor(TimeKeeper, Scope.SINGLETON, 'clockWrap');

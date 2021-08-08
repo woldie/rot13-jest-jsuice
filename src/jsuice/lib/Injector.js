@@ -1,4 +1,4 @@
-/* eslint-disable prefer-rest-params,no-bitwise,max-classes-per-file,no-param-reassign */
+/* eslint-disable prefer-rest-params,no-bitwise,max-classes-per-file,no-param-reassign,prefer-destructuring */
 // noinspection JSCommentMatchesSignature,JSBitwiseOperatorUsage
 
 const isString = require('lodash.isstring');
@@ -239,7 +239,7 @@ class Injector {
    * @template T
    * @see {@link Injector#moduleGroup}
    */
-  annotateConstructor(ctor, flags, numberOfUserSuppliedArgs) {
+  annotateConstructor(ctor) {
     if (!isFunction(ctor)) {
       throw new Error("annotateConstructor: ctor is a required parameter and must be a constructor function");
     }
@@ -252,8 +252,9 @@ class Injector {
 
     const argList = Array.from(arguments);
     const isFlagsSupplied = isNumber(argList[1]);
+    let flags = isFlagsSupplied ? argList[1] : Scope.PROTOTYPE;
     const isUserSuppliedArgsCountSpecified = isNumber(argList[2]);
-    numberOfUserSuppliedArgs = isUserSuppliedArgsCountSpecified ? argList[2] : 0;
+    const numberOfUserSuppliedArgs = isUserSuppliedArgsCountSpecified ? argList[2] : 0;
     const injectedParamsStartIndex = 1 + (isFlagsSupplied ? 1 : 0) + (isUserSuppliedArgsCountSpecified ? 1 : 0);
     const injectedParamsArray = (argList.length > injectedParamsStartIndex) ?
       argList.slice(injectedParamsStartIndex) :
@@ -276,8 +277,6 @@ class Injector {
           metaObj.numberOfUserSuppliedArgs} user-supplied arguments, but ctor has ${
           ctor.length} named arguments. ctor: ${InjectorUtils.getFunctionSignature(ctor)}`);
     }
-
-    flags = isFlagsSupplied ? argList[1] : Scope.PROTOTYPE;
 
     switch (flags & (Scope.SINGLETON | Scope.APPLICATION | Scope.PROTOTYPE)) {
       case Scope.PROTOTYPE:
@@ -397,20 +396,45 @@ class Injector {
    * @param {ProviderFunction<T>} providerFunction a function that takes injectedParams plus optional
    * user-supplied arguments and returns an object.  injectedParams.length + numOfUserSuppliedArgs must exactly equal
    * the number of named parameters on the providerFunction.
-   * @param {Number} numOfUserSuppliedArgs optional number of parameters that are expected to be passed from calls to
-   * {@link Injector#getInstance} to the factory function when the returned Provider is the injectable subject.
+   * @param {Number=} flags optional integer containing flag constants that describe what the scope and configuration
+   * flags should be for the constructor.  Valid flag constants are {@link #Scope.PROTOTYPE} and
+   * {@link #Flags.INFRASTRUCTURE}.  Use bitwise-OR or the plus operator to union flag constants together into one
+   * flags value.  flags defaults to {@link #Scope.PROTOTYPE} if not specified.
+   * @param {Number=} numOfUserSuppliedArgs optional number of parameters that are expected to be passed from calls to
+   * {@link Injector#getInstance} to the providerFunction when the returned Provider is the injectable subject.
    * Whenever the Injector calls the providerFunction, instances for the injectedParams will always be passed in-order
-   * in the argument list to the providerFunction first, followed by all user-supplied args passed to
-   * {@link Injector#getInstance}.  numberOfUserSuppliedArgs defaults to 0 if not specified.
+   * in the argument list to the providerFunction first, followed by the user-supplied args passed to
+   * {@link Injector#getInstance}.  If numOfUserSuppliedArgs is specified, then flags is required.
+   * numOfUserSuppliedArgs defaults to 0 if not specified.
    * @param {...(String|FactoryFunction)} injectedParams 0-or-more ordered, variable argument set of names of
    * injectables that must be instantiated by {@link #getInstance} or {@link #FactoryFunction}s that are passed as
-   * arguments to the providerFunction.  When there are 1-or-more injectedParams, then numOfUserSuppliedArgs is
-   * required and must be specified, even if its value is 0.
+   * arguments to the providerFunction.
    * @template T object type returned from providerFunction
    * @returns {Provider} a Provider that can be passed to {@link #moduleGroup} as an injectable subject
    */
-  createProvider(providerFunction, numOfUserSuppliedArgs) {
-    const injectedParams = (arguments.length > 2) ? Array.from(arguments).slice(2) : [];
+  createProvider(providerFunction) {
+    const extraArgs = Array.from(arguments).slice(1);
+    let injectedParamsIdx = 0;
+    let flags = Scope.PROTOTYPE;
+    let numOfUserSuppliedArgs = 0;
+
+    if (extraArgs.length >= 1 && isNumber(extraArgs[0])) {
+      injectedParamsIdx = 1;
+      flags = extraArgs[0];
+
+      if (extraArgs.length >= 2 && isNumber(extraArgs[1])) {
+        injectedParamsIdx = 2;
+        numOfUserSuppliedArgs = extraArgs[1];
+      }
+    }
+
+    // Validate and filter flags for createProvider
+    if (flags & ~(Scope.PROTOTYPE + Flags.INFRASTRUCTURE)) {
+      throw new Error(`flags contains forbidden or unrecognized bits: ${flags}`);
+    }
+    flags &= ~Scope.PROTOTYPE;
+
+    const injectedParams = extraArgs.slice(injectedParamsIdx);
 
     if (injectableMetadata.isProviderFunctionAlreadyRegistered(providerFunction)) {
       throw new Error(`Factory function already registered as a Provider: ${
@@ -425,7 +449,7 @@ class Injector {
       numberOfUserSuppliedArgs: numOfUserSuppliedArgs,
       eager: false,
       scope: Scope.PROTOTYPE,
-      flags: 0
+      flags
     };
 
     if ((metaObj.injectedParams.length + metaObj.numberOfUserSuppliedArgs) !== providerFunction.length) {
@@ -562,10 +586,13 @@ class Injector {
     const self = this;
     const injectable = self.findInjectableByName(name);
     if (injectable) {
-      if (scopeHistory.length && scopeHistory[scopeHistory.length - 1] < injectable.scope) {
-        const previousName = nameHistory[nameHistory.length - 1];
-        throw new Error(`Cannot inject ${name} into ${previousName}, ${name} has a wider scope.`);
-      }
+      // TODO: when/if we have a working application scope, it's usually an error to have a singleton depend on it,
+      //  so we should resurrect the following validation and activate it for that.  For all other differing-scoped
+      //  dependent/dependency relationships, I do not see any issues
+      // if (scopeHistory.length && scopeHistory[scopeHistory.length - 1] < injectable.scope) {
+      //   const previousName = nameHistory[nameHistory.length - 1];
+      //   throw new Error(`Cannot inject ${name} into ${previousName}, ${name} has a wider scope.`);
+      // }
 
       return self.getInstanceForInjectable(injectable, nameHistory, scopeHistory, assistedInjectionParams);
     }

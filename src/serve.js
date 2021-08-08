@@ -1,4 +1,3 @@
-require('./rot13-utils/moduleGroup');
 require('./rot13-service/moduleGroup');
 
 const injector = require('./jsuice');

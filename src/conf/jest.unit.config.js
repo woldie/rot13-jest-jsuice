@@ -9,7 +9,7 @@ module.exports = {
   roots: [`${__dirname}/..`],
   testEnvironment: 'node',
   testMatch: ['**/*.test.js'],
-  setupFilesAfterEnv: [`${__dirname}/jest.unit.setup.js`],
+  setupFilesAfterEnv: ['jest-expect-message', `${__dirname}/jest.unit.setup.js`],
   moduleDirectories: [`${__dirname}/../../node_modules`, `${__dirname}/..`],
   collectCoverage: true,
   coverageDirectory: `${__dirname}/../../reports/unit`,
@@ -19,6 +19,7 @@ module.exports = {
     `!${__dirname}/../**/*.test.js`,
     `!${__dirname}/../**/*.functional.js`,
     `!${__dirname}/**/*.js`,
+    `!${__dirname}/../**/testScripts/*.js`,
   ],
   coverageReporters: [
     'json-summary', // coverage summary

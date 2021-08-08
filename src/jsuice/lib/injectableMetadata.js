@@ -21,13 +21,15 @@ class InjectableMetadata {
 
     /**
      * @name InjectableMetadata#providerFtn
-     * @type {WeakSet.<Function>}
+     * @type {WeakSet.<ProviderFunction<T>>}
+     * @template T
      */
     this.providerFtn = new WeakSet();
 
     /**
      * @name InjectableMetadata#provider
-     * @type {WeakMap.<Provider, Function>}
+     * @type {WeakMap.<Provider, FactoryFunction<T>>}
+     * @template T
      */
     this.provider = new WeakMap();
   }
@@ -59,7 +61,8 @@ class InjectableMetadata {
 
   /**
    * @param {Provider} provider
-   * @param {Function} factoryFunction
+   * @param {FactoryFunction<T>} factoryFunction
+   * @template T
    */
   setProvider(provider, factoryFunction) {
     this.providerFtn.add(factoryFunction);
@@ -68,15 +71,16 @@ class InjectableMetadata {
 
   /**
    * @param {Provider} provider
-   * @returns {?Function}
+   * @returns {?FactoryFunction<T>}
    */
   getProviderFunction(provider) {
     return this.provider.get(provider);
   }
 
   /**
-   * @param {Function} providerFtn
+   * @param {ProviderFunction<T>} providerFtn
    * @returns {boolean}
+   * @template T
    */
   isProviderFunctionAlreadyRegistered(providerFtn) {
     return this.providerFtn.has(providerFtn);

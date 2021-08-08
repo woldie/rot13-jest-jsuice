@@ -7,7 +7,7 @@ module.exports = {
   testMatch: [`**/*.functional.js`],
   globalSetup: `${__dirname}/jest.functional.globalSetup.js`,
   globalTeardown: `${__dirname}/jest.functional.globalTeardown.js`,
-  setupFilesAfterEnv: [`${__dirname}/jest.functional.setup.js`],
+  setupFilesAfterEnv: ['jest-expect-message', `${__dirname}/jest.functional.setup.js`],
   moduleDirectories: [`${__dirname}/../../node_modules`, `${__dirname}/..`],
 
   // bails on the build completely if lifecycle hooks like beforeAll throw

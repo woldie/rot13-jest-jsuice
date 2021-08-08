@@ -7,12 +7,12 @@ const { Scope, Flags } = injector;
 
 class HttpRequest {
   /**
-   * @param {module:http.IncomingMessage} nodeRequest
+   * @param {NodeRequest} nodeRequest
    */
   constructor(nodeRequest) {
     /**
      * @name HttpRequest#nodeRequest
-     * @type {module:http.IncomingMessage}
+     * @type {NodeRequest}
      */
     this.nodeRequest = nodeRequest;
   }
