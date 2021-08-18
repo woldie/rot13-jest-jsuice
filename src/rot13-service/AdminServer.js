@@ -38,7 +38,7 @@ class AdminServer {
   }
 
   async shutdown() {
-    await new Promise((resolve, reject) => {
+    await new Promise((resolve) => {
       this.server.on('close', () => {
         this.server = null;
         resolve();

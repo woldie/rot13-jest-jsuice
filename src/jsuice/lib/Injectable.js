@@ -23,13 +23,13 @@ class Injectable {
 
     /**
      * @name Injectable#injectedParamTypes
-     * @type {Array.<InjectableType>}
+     * @type {Array.<InjectedParamType>}
      */
     self.injectedParamTypes = [];
 
     const typeofSubject = typeof subject;
     switch (typeofSubject) {
-      case "function":
+      case 'function':
         scope = Scope.PROTOTYPE;
         type = InjectableType.INJECTED_CONSTRUCTOR;
 
@@ -64,7 +64,7 @@ class Injectable {
         }
         break;
 
-      case "object":
+      case 'object':
         if (subject instanceof Provider) {
           type = InjectableType.PROVIDER;
           scope = Scope.PROTOTYPE;
@@ -190,8 +190,8 @@ class Injectable {
         { numberOfUserSuppliedArgs: 0};
 
       if (assistedInjectionParams.length !== metaObj.numberOfUserSuppliedArgs) {
-        throw new Error(`Invalid number of user-supplied parameters for assisted injection, expected ` +
-            `${metaObj.numberOfUserSuppliedArgs}, got ${assistedInjectionParams.length}`);
+        throw new Error(`Invalid number of user-supplied parameters for assisted injection for ${self.name}, expected ${
+          metaObj.numberOfUserSuppliedArgs}, got ${assistedInjectionParams.length}`);
       }
 
       if (!self.newInstanceFunction) {

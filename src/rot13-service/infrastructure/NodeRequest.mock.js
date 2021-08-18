@@ -5,7 +5,7 @@ const reduce = require('lodash.reduce');
 const injector = require('../../sociable-jsuice');
 const { signatureCheck }  = require('../../rot13-utils/typeCheck');
 
-module.exports = () => {
+const mockNodeRequestCustomizer = (injectableName, mockObj, context) => {
   class FakeNodeRequest extends EventEmitter {
     constructor({
                   url = "/null-request-url",
@@ -41,17 +41,14 @@ module.exports = () => {
     }
   }
 
-  const nodeRequest = new FakeNodeRequest({
+  context.nodeRequest = new FakeNodeRequest({
     url: '/rot13/transform',
     method: 'POST',
     headers: {'content-type': 'application/json'},
     body: ''
   });
 
-  const context = injector.getInjectorContext();
-  context.nodeRequest = nodeRequest;
-
-  return nodeRequest;
+  return context.nodeRequest;
 };
 
 function normalizeHeaders(headers) {
@@ -60,3 +57,5 @@ function normalizeHeaders(headers) {
     return accumulator;
   }, {});
 }
+
+module.exports = mockNodeRequestCustomizer;

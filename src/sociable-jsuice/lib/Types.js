@@ -5,12 +5,20 @@ const td = require('testdouble');
  */
 
 /**
- * @typedef {?function(mock:td.DoubledObject<*>)} MockCustomizerCallback
+ * User-defined customizations applicable to mockObj.
+ *
+ * @typedef {function(injectableName:String,mockObj:td.DoubledObject<*>,context:Object<String,*>)} CustomizerFunction
+ */
+
+/**
+ * Callback called after a mock or partial mock is created that applies a CustomizerFunction to mock.
+ *
+ * @typedef {function(mock:td.DoubledObject<*>)} MockCustomizerClosure
  * @package
  */
 
 /**
- * @typedef {(String|SystemUnderTest|MockCollaborator|PartialMockCollaborator|FactoryFunction)} Collaborator
+ * @typedef {(String|SystemUnderTest|MockCollaborator|PartialMockCollaborator|Instancer)} Collaborator
  * @template T
  */
 

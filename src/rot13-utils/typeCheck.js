@@ -4,7 +4,9 @@ const type = require('./type');
 module.exports = {
   signatureCheck: (args, signature, names) => {
     checkSignature(false, args, signature, names);
-  }
+  },
+  getTypeErrors: (variable, expectedType, allowExtraKeys, name) =>
+    type.check(variable, expectedType, { name: normalize(name), allowExtraKeys })
 };
 
 function isTrue(variable, message) {

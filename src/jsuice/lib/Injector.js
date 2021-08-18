@@ -1,4 +1,4 @@
-/* eslint-disable prefer-rest-params,no-bitwise,max-classes-per-file,no-param-reassign,prefer-destructuring */
+/* eslint-disable prefer-rest-params,no-bitwise,max-classes-per-file,no-param-reassign,prefer-destructuring,default-case */
 // noinspection JSCommentMatchesSignature,JSBitwiseOperatorUsage
 
 const isString = require('lodash.isstring');
@@ -8,6 +8,8 @@ const isUndefined = require('lodash.isundefined');
 const map = require('lodash.map');
 const forEach = require('lodash.foreach');
 const keys = require('lodash.keys');
+const { getCallId } = require('call-id');
+
 const Scope = require('./Scope');
 const Flags = require('./Flags');
 const InjectableType = require('./InjectableType');
@@ -15,14 +17,16 @@ const ModuleGroup = require('./ModuleGroup');
 const Provider = require('./Provider');
 const injectableMetadata = require('./injectableMetadata');
 const InjectorUtils = require('./InjectorUtils');
-const DependencyGraph = require('./dependencies/DependencyGraph');
 const InjectedParamType = require('./InjectedParamType');
 
 /**
  * J'suice Dependency Injector
  */
 class Injector {
-  constructor() {
+  /**
+   * @param {DependencyGraph} dependencyGraph
+   */
+  constructor(dependencyGraph) {
     const self = this;
 
     /**
@@ -73,18 +77,18 @@ class Injector {
      * @package
      * @ignore
      */
-    self.dependencyGraph = new DependencyGraph();
+    self.dependencyGraph = dependencyGraph;
 
     /**
-     * Keeps track of which functions we have created to be factory functions.  Prevents callers from passing the
-     * Injector arbitrary functions that it will call.
+     * Keeps track of which functions the caller has created to be instancer functions.  Prevents callers from passing
+     * the Injector arbitrary functions that it will call.
      *
-     * @name Injector#isFactoryFunction
-     * @type {WeakMap<Function, String>}
+     * @name Injector#isInstancerFunction
+     * @type {WeakMap<Instancer, String>}
      * @package
      * @ignore
      */
-    self.isFactoryFunction = new WeakMap();
+    self.isInstancerFunction = new WeakMap();
   }
 
   /**
@@ -187,23 +191,23 @@ class Injector {
   /**
    * @private
    * @ignore
-   * @param {(String|FactoryFunction)} injectedParam
+   * @param {(String|Instancer)} injectedParam
    * @param {Number} injectedParamIndex
    * @param {String} forFunction
    * @param {String} description
    * @returns {InjectedParamType} if valid injectedParam, this is its type
-   * @throws {Error} if injectedParam is not a String or FactoryFunction
+   * @throws {Error} if injectedParam is not a String or Instancer function
    */
   validateInjectedParam(injectedParam, injectedParamIndex, forFunction, description) {
     if (isString(injectedParam)) {
       return InjectedParamType.INJECTABLE_NAME;
     }
-    if (isFunction(injectedParam) && this.isFactoryFunction.has(injectedParam)) {
-      return InjectedParamType.FACTORY_FUNCTION;
+    if (isFunction(injectedParam) && this.isInstancerFunction.has(injectedParam)) {
+      return InjectedParamType.INSTANCER_FUNCTION;
     }
 
     throw new Error(`${forFunction} injectedParam[${
-      injectedParamIndex}]: only Strings or FactoryFunctions may be passed for injectedParams. ${description}`);
+      injectedParamIndex}]: only Strings or Instancer functions may be passed for injectedParams. ${description}`);
   }
 
   /**
@@ -232,8 +236,8 @@ class Injector {
    * user pass to the constructor in addition to the ones supplied by the injector.  numberOfUserSuppliedArgs defaults
    * to 0 if not specified.  It is an error for numberOfUserSuppliedArgs to be > 0 for scope flags other than
    * {@link Injector#Scope.PROTOTYPE}.  If numberOfUserSuppliedArgs is specified, then flags is required.
-   * @param {...(String|FactoryFunction)} injectedParams 0-or-more ordered, variable argument set of String names of
-   * injectables or {@link #FactoryFunction}s that must be instantiated by {@link #getInstance} that are passed as
+   * @param {...(String|Instancer)} injectedParams 0-or-more ordered, variable argument set of String names of
+   * injectables or {@link #Instancer}s that must be instantiated by {@link #getInstance} that are passed as
    * constructor arguments to ctor.
    * @returns {typeof T} annotated constructor function
    * @template T
@@ -261,6 +265,7 @@ class Injector {
       [];
 
     const metaObj = {
+      moduleFilePath: getCallId(1).file,
       injectedParams: injectedParamsArray,
       injectedParamTypes: map(injectedParamsArray, (injectedParam, idx) =>
         this.validateInjectedParam(injectedParam, idx, 'annotateConstructor', `ctor: ${
@@ -270,13 +275,6 @@ class Injector {
       scope: Scope.PROTOTYPE,
       flags: 0
     };
-
-    if ((metaObj.injectedParams.length + metaObj.numberOfUserSuppliedArgs) !== ctor.length) {
-      throw new Error(`annotateConstructor: ctor named argument counts do not match. Expected ctor to take ${
-          metaObj.injectedParams.length} injectable arguments + ${
-          metaObj.numberOfUserSuppliedArgs} user-supplied arguments, but ctor has ${
-          ctor.length} named arguments. ctor: ${InjectorUtils.getFunctionSignature(ctor)}`);
-    }
 
     switch (flags & (Scope.SINGLETON | Scope.APPLICATION | Scope.PROTOTYPE)) {
       case Scope.PROTOTYPE:
@@ -317,20 +315,39 @@ class Injector {
           metaObj.eager = true;
         }
         break;
+    }
 
-      default:
-        throw new Error("Exactly one scope flag was expected");
+    if (flags & (Scope.SINGLETON | Scope.APPLICATION | Scope.PROTOTYPE)) {
+      throw new Error("Only one Scope may be supplied in flags");
     }
 
     if ((flags & Flags.EAGER)) {
       throw new Error("Eager flag is only permitted on the SINGLETON and APPLICATION scopes");
     }
 
-    if (flags - Flags.INFRASTRUCTURE > 0) {
-      throw new Error("Unknown flags");
+    let infrastructureFlag = 0
+    if ((flags & Flags.INFRASTRUCTURE)) {
+      infrastructureFlag = Flags.INFRASTRUCTURE;
+      flags -= Flags.INFRASTRUCTURE;
     }
 
-    metaObj.flags = flags;
+    if (flags > 0) {
+      if (flags >= 256) {
+        throw new Error(`Unknown flags: ${flags}`);
+      } else {
+        throw new Error(`flags parameter required; when numOfUserSuppliedArgs (${
+          flags}) is supplied, flags is also required`)
+      }
+    }
+
+    metaObj.flags = infrastructureFlag;
+
+    if ((metaObj.injectedParams.length + metaObj.numberOfUserSuppliedArgs) !== ctor.length) {
+      throw new Error(`annotateConstructor: ctor named argument counts do not match. Expected ctor to take ${
+        metaObj.injectedParams.length} injectable arguments + ${
+        metaObj.numberOfUserSuppliedArgs} user-supplied arguments, but ctor has ${
+        ctor.length} named arguments. ctor: ${InjectorUtils.getFunctionSignature(ctor)}`);
+    }
 
     // copy metaObj properties into the metadata object for the ctor
     Object.assign(injectableMetadata.findOrAddMetadataFor(ctor), metaObj);
@@ -339,42 +356,46 @@ class Injector {
   }
 
   /**
-   * A factory function returned for a jsuice injectable from {@link #factoryFunction}.
+   * An {@link #instancer instancer} function used to construct {@link Scope.PROTOTYPE PROTOTYPE}-scoped j'suice
+   * injectables.
    *
-   * @typedef {Function} FactoryFunction
+   * @typedef {Function} Instancer
    * @param {...*} userSuppliedArguments 0-or-more required user-supplied variable argument list expected by the
-   * injectable that this FactoryFunction instantiates.  See {@link #annotateConstructor} and {@link #createProvider}
+   * injectable that this Instancer function instantiates.  See {@link #annotateConstructor} and {@link #createProvider}
    * for more discussion about user-supplied arguments.
    * @template T
-   * @returns {T} Instance of injectable type T for the injectableName passed to {@link #factoryFunction}.  You may
-   * pass this FactoryFunction as one of the injectedParams for {@link #annotateConstructor} and {@link #createProvider}
+   * @returns {T} Instance of injectable type T for the injectableName passed to {@link #instancer}.  You may
+   * pass this Instancer function as one of the injectedParams for {@link #annotateConstructor} and
+   * {@link #createProvider}
    */
 
   /**
-   * Creates a factory function for injectableName can be passed to {@link #annotateConstructor} or
-   * {@link #createProvider} to describe an injectable parameter.  A factory function is useful in assisted injection
-   * scenarios where {@link #Scope.PROTOTYPE} objects need to be created at-will that are instantiated with injectables
-   * from both the {@link Injector} and the user.  The factory function will be passed verbatim to any instantiated
-   * injectables that take it as constructor parameter.
+   * Creates an {@link #Instancer} function that uses {@link #getInstance} to for injectableName.
+   *
+   * <p>{@link #Instancer} functions can be passed to {@link #annotateConstructor} or {@link #createProvider} to
+   * describe an injectable parameter.  A factory function is useful in assisted injection scenarios where
+   * {@link #Scope.PROTOTYPE} objects need to be created at-will that are instantiated with injectables from both the
+   * {@link Injector} and the caller.  The factory function will be passed verbatim to any instantiated injectables
+   * that take it as constructor parameter.
    *
    * @param {String} injectableName
-   * @returns {FactoryFunction}
+   * @returns {Instancer}
    */
-  factoryFunction(injectableName) {
+  instancer(injectableName) {
     const self = this;
 
     /**
      * @param {...*} userSuppliedArgs
      */
-    function theFactory() {
+    function theInstancer() {
       const userSuppliedArgs = Array.from(arguments);
 
       return self.getInstance.apply(self, [injectableName, ...userSuppliedArgs]);
     }
 
-    self.isFactoryFunction.set(theFactory, injectableName);
+    self.isInstancerFunction.set(theInstancer, injectableName);
 
-    return theFactory;
+    return theInstancer;
   }
 
   /**
@@ -397,7 +418,7 @@ class Injector {
    * user-supplied arguments and returns an object.  injectedParams.length + numOfUserSuppliedArgs must exactly equal
    * the number of named parameters on the providerFunction.
    * @param {Number=} flags optional integer containing flag constants that describe what the scope and configuration
-   * flags should be for the constructor.  Valid flag constants are {@link #Scope.PROTOTYPE} and
+   * flags should be for the provided object.  Valid flag constants are {@link #Scope.PROTOTYPE} and
    * {@link #Flags.INFRASTRUCTURE}.  Use bitwise-OR or the plus operator to union flag constants together into one
    * flags value.  flags defaults to {@link #Scope.PROTOTYPE} if not specified.
    * @param {Number=} numOfUserSuppliedArgs optional number of parameters that are expected to be passed from calls to
@@ -406,8 +427,8 @@ class Injector {
    * in the argument list to the providerFunction first, followed by the user-supplied args passed to
    * {@link Injector#getInstance}.  If numOfUserSuppliedArgs is specified, then flags is required.
    * numOfUserSuppliedArgs defaults to 0 if not specified.
-   * @param {...(String|FactoryFunction)} injectedParams 0-or-more ordered, variable argument set of names of
-   * injectables that must be instantiated by {@link #getInstance} or {@link #FactoryFunction}s that are passed as
+   * @param {...(String|Instancer)} injectedParams 0-or-more ordered, variable argument set of names of
+   * injectables that must be instantiated by {@link #getInstance} or {@link #Instancer}s that are passed as
    * arguments to the providerFunction.
    * @template T object type returned from providerFunction
    * @returns {Provider} a Provider that can be passed to {@link #moduleGroup} as an injectable subject
@@ -430,7 +451,12 @@ class Injector {
 
     // Validate and filter flags for createProvider
     if (flags & ~(Scope.PROTOTYPE + Flags.INFRASTRUCTURE)) {
-      throw new Error(`flags contains forbidden or unrecognized bits: ${flags}`);
+      if (flags < 256) {
+        throw new Error(`flags parameter required; when numOfUserSuppliedArgs (${
+          flags}) is supplied, flags is also required`);
+      } else {
+        throw new Error(`flags contains forbidden or unrecognized bits: ${flags}`);
+      }
     }
     flags &= ~Scope.PROTOTYPE;
 
@@ -442,6 +468,7 @@ class Injector {
     }
 
     const metaObj = {
+      moduleFilePath: getCallId(1).file,
       injectedParams,
       injectedParamTypes: map(injectedParams, (injectedParam, idx) =>
         this.validateInjectedParam(injectedParam, idx, 'createProvider', `providerFunction: ${

@@ -5,7 +5,7 @@ const Provider = require('./Provider');
 const InjectedParamType = require('./InjectedParamType');
 
 /**
- * @typedef {{scope: Scope, eager: Boolean, flags: Number, injectedParams: Array.<String|FactoryFunction>, injectedParamTypes: Array.<InjectedParamType>, numberOfUserSuppliedArgs: Number=}} InjectableMetadata.Collection
+ * @typedef {{moduleFilePath: String, scope: Scope, eager: Boolean, flags: Number, injectedParams: Array.<String|Instancer>, injectedParamTypes: Array.<InjectedParamType>, numberOfUserSuppliedArgs: Number=}} InjectableMetadata.Collection
  */
 
 /**
@@ -28,7 +28,7 @@ class InjectableMetadata {
 
     /**
      * @name InjectableMetadata#provider
-     * @type {WeakMap.<Provider, FactoryFunction<T>>}
+     * @type {WeakMap.<Provider, ProviderFunction<T>>}
      * @template T
      */
     this.provider = new WeakMap();
@@ -61,17 +61,17 @@ class InjectableMetadata {
 
   /**
    * @param {Provider} provider
-   * @param {FactoryFunction<T>} factoryFunction
+   * @param {ProviderFunction<T>} providerFunction
    * @template T
    */
-  setProvider(provider, factoryFunction) {
-    this.providerFtn.add(factoryFunction);
-    this.provider.set(provider, factoryFunction);
+  setProvider(provider, providerFunction) {
+    this.providerFtn.add(providerFunction);
+    this.provider.set(provider, providerFunction);
   }
 
   /**
    * @param {Provider} provider
-   * @returns {?FactoryFunction<T>}
+   * @returns {?ProviderFunction<T>}
    */
   getProviderFunction(provider) {
     return this.provider.get(provider);

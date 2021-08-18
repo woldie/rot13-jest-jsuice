@@ -23,8 +23,8 @@ const forEach = require('lodash.foreach');
 const Flags = {};
 
 forEach({
-  'INFRASTRUCTURE': 64,
-  'EAGER': 128
+  'INFRASTRUCTURE': 256,
+  'EAGER': 512
 }, (value, key) => {
   Object.defineProperty(Flags, key, {
     configurable: false,

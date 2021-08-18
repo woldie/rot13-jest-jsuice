@@ -4,7 +4,9 @@ const Flags = require('./Flags')
 const InjectableType = require('./InjectableType');
 const Injectable = require('./Injectable');
 const Injector = require('./Injector');
+const DependencyGraph = require('./dependencies/DependencyGraph');
 const injectableMetadata = require('./injectableMetadata');
+const InjectedParamType = require('./InjectedParamType');
 
 jest.mock('./dependencies/DependencyGraph');
 
@@ -13,10 +15,11 @@ describe("Injector", () => {
   let injector;
 
   beforeAll(() => {
-    injector = new Injector();
+    injector = new Injector(new DependencyGraph());
   });
 
   beforeEach(() => {
+    DependencyGraph.mockClear();
     injector.clearScope(Scope.SINGLETON);
     injector.clearScope(Scope.APPLICATION);
     injector.moduleGroups = [];
@@ -83,10 +86,12 @@ describe("Injector", () => {
     // AND: and metadata was added to the constructor
     expect(injectableMetadata.hasMetadataAssigned(MyConstructor));
     expect(injectableMetadata.findOrAddMetadataFor(MyConstructor)).toEqual({
+      moduleFilePath: expect.stringMatching(/Injector.test.js$/),
       scope: Scope.PROTOTYPE,
       flags: 0,
       eager: false,
       injectedParams: [],
+      injectedParamTypes: [],
       numberOfUserSuppliedArgs: 0,
     });
   });
@@ -158,7 +163,7 @@ describe("Injector", () => {
     // WHEN I try to annotate the constructor with a wrong number of parameters (1+3 instead of 1+2)
     expect(() => {
       injector.annotateConstructor(MyConstructor, Scope.PROTOTYPE, 3, "other");
-    }).toThrow(/Expected ctor to have 1 injectables \+ 3 extra parameters, but ctor only has 3 params/);
+    }).toThrow(/ctor named argument counts do not match.*1 injectable arguments \+ 3 user-supplied arguments.*ctor has 3 named arguments/);
   });
 
   it("[PROTOTYPE, CONSTRUCTOR_FUNCTION, annotateConstructor] can handle just ctor and injectables list", () => {
@@ -174,11 +179,15 @@ describe("Injector", () => {
     // THEN ctor has expected metadata annotations
     expect(injectableMetadata.hasMetadataAssigned(MyConstructor)).toStrictEqual(true);
     expect(injectableMetadata.findOrAddMetadataFor(MyConstructor)).toEqual({
+      moduleFilePath: expect.stringMatching(/Injector.test.js$/),
       scope: Scope.PROTOTYPE,
       flags: 0,
       eager: false,
       numberOfUserSuppliedArgs: 0,
-      injectedParams: ["other"]
+      injectedParams: ["other"],
+      injectedParamTypes: [
+        InjectedParamType.INJECTABLE_NAME
+      ]
     });
   });
 
@@ -194,11 +203,13 @@ describe("Injector", () => {
     // THEN ctor has expected metadata annotations
     expect(injectableMetadata.hasMetadataAssigned(MyConstructor)).toStrictEqual(true);
     expect(injectableMetadata.findOrAddMetadataFor(MyConstructor)).toEqual({
+      moduleFilePath: expect.stringMatching(/Injector.test.js$/),
       scope: Scope.PROTOTYPE,
       flags: 0,
       eager: false,
       numberOfUserSuppliedArgs: 0,
-      injectedParams: []
+      injectedParams: [],
+      injectedParamTypes: []
     });
   });
 
@@ -251,31 +262,6 @@ describe("Injector", () => {
     const objectB = injector.getInstance("MyConstructor");
 
     expect(objectA === objectB).toBe(true); // , "singleton object should be returned for objectA and objectB");
-  });
-
-  it("[SINGLETON, CONSTRUCTOR_FUNCTION] will not inject dependencies with wider scopes (any other than SINGLETON)", () => {
-    const moduleGroup = injector.addModuleGroup("myGroup");
-
-    function MyPrototype () {
-    }
-    MyPrototype.prototype.constructor = MyPrototype;
-
-    injector.annotateConstructor(MyPrototype, Scope.PROTOTYPE);
-
-    moduleGroup.register("MyPrototype", MyPrototype);
-
-    function MySingleton (myPrototype) {
-      this.x = myPrototype;
-    }
-    MySingleton.prototype.constructor = MySingleton;
-
-    injector.annotateConstructor(MySingleton, Scope.SINGLETON, "MyPrototype");
-
-    moduleGroup.register("MySingleton", MySingleton);
-
-    expect(() => {
-      injector.getInstance("MySingleton");
-    }).toThrow(/wider scope/); // , "Cannot bind a singleton to a wider-scoped dependency");
   });
 
   it("[PROTOTYPE, CONSTRUCTOR_FUNCTION] will not inject dependencies from wider scopes than PROTOTYPE", () => {
@@ -412,11 +398,13 @@ describe("Injector", () => {
 
     expect(injectableMetadata.hasMetadataAssigned(MyConstructor)).toStrictEqual(true);
     expect(injectableMetadata.findOrAddMetadataFor(MyConstructor)).toEqual({
+      moduleFilePath: expect.stringMatching(/Injector.test.js$/),
       scope: Scope.SINGLETON,
       flags: 0,
       eager: true,
       numberOfUserSuppliedArgs: 0,
-      injectedParams: ["gazinta", "another"]
+      injectedParams: ["gazinta", "another"],
+      injectedParamTypes: [ InjectedParamType.INJECTABLE_NAME, InjectedParamType.INJECTABLE_NAME ]
     });
   });
 
@@ -430,11 +418,13 @@ describe("Injector", () => {
     // ctor has expected metadata annotations
     expect(injectableMetadata.hasMetadataAssigned(MyConstructor)).toStrictEqual(true);
     expect(injectableMetadata.findOrAddMetadataFor(MyConstructor)).toEqual({
+      moduleFilePath: expect.stringMatching(/Injector.test.js$/),
       scope: Scope.PROTOTYPE,
       flags: 0,
       eager: false,
       numberOfUserSuppliedArgs: 0,
-      injectedParams: []
+      injectedParams: [],
+      injectedParamTypes: []
     });
   });
 
@@ -453,7 +443,7 @@ describe("Injector", () => {
     // EXPECT: injector will throw if any injectedParams contain non-strings
     expect(() => {
       injector.annotateConstructor(MyConstructor, nonStringValue);
-    }).toThrow(/Only strings may be passed for injectedParams/); // , "should throw when non-strings appear for injectedParams");
+    }).toThrow(/only Strings or Instancer functions may be passed for injectedParams/); // , "should throw when non-strings appear for injectedParams");
 
     // GIVEN: a constructor with 2 injected args
     function MyConstructor2 (blah, borb) {
@@ -465,7 +455,7 @@ describe("Injector", () => {
     // EXPECT: injector will throw if any injectedParams contain non-strings
     expect(() => {
       injector.annotateConstructor(MyConstructor2, Scope.SINGLETON, "okay1", nonStringValue);
-    }).toThrow(/Only strings may be passed for injectedParams/); // , "should throw when non-strings appear for injectedParams");
+    }).toThrow(/only Strings or Instancer functions may be passed for injectedParams/); // , "should throw when non-strings appear for injectedParams");
 
     // GIVEN: a constructor with 3 args
     function MyConstructor3 (blah, borb, bwee) {
@@ -478,24 +468,23 @@ describe("Injector", () => {
     // EXPECT: injector will throw if any injectedParams contain non-strings
     expect(() => {
       injector.annotateConstructor(MyConstructor3, Scope.SINGLETON, 0, "okay1", "okay2", nonStringValue);
-    }).toThrow(/Only strings may be passed for injectedParams/); // , "should throw when non-strings appear for injectedParams");
+    }).toThrow(/only Strings or Instancer functions may be passed for injectedParams/); // , "should throw when non-strings appear for injectedParams");
   });
 
   test.each`
     flags
-    ${0}
     ${Scope.SINGLETON | Scope.PROTOTYPE}
     ${Scope.APPLICATION | Scope.PROTOTYPE}
     ${Scope.SINGLETON | Scope.APPLICATION}
     ${Scope.SINGLETON | Scope.APPLICATION | Scope.PROTOTYPE}
-  `('[annotateConstructor] will fail if a scope is not set or if more than one scope is set: $flags', ({ flags }) => {
+  `('[annotateConstructor] will fail if more than one scope is set: $flags', ({ flags }) => {
     function MyConstructor () {
     }
     MyConstructor.prototype.constructor = MyConstructor;
 
     expect(() => {
       injector.annotateConstructor(MyConstructor, flags);
-    }).toThrow(/exactly one scope flag/i); // , "Expect annotateConstructor to throw when flags does not contain exactly one scope");
+    }).toThrow(/Only one Scope may be supplied in flags/i);
   });
 
   test.each`
@@ -515,11 +504,13 @@ describe("Injector", () => {
     // THEN ctor has expected metadata annotations
     expect(injectableMetadata.hasMetadataAssigned(MyConstructor)).toStrictEqual(true);
     expect(injectableMetadata.findOrAddMetadataFor(MyConstructor)).toEqual({
+      moduleFilePath: expect.stringMatching(/Injector.test.js$/),
       scope,
       flags: 0,
       eager: true,
       numberOfUserSuppliedArgs: 0,
-      injectedParams: []
+      injectedParams: [],
+      injectedParamTypes: []
     });
   });
 
@@ -542,6 +533,17 @@ describe("Injector", () => {
       injector.annotateConstructor(MyConstructor, Scope.APPLICATION | Flags.EAGER | 4096);
     }).toThrow(/Unknown flags/); // , "Will throw if unknown flags are detected");
   });
+
+  it('[annotateConstructor] will fail if numOfUserSuppliedArgs is supplied but flags is not', () => {
+    function MyConstructor (extraParam1, extraParam2) {
+    }
+    MyConstructor.prototype.constructor = MyConstructor;
+
+    expect(() => {
+      injector.annotateConstructor(MyConstructor, 2);
+    }).toThrow(/flags parameter required; when numOfUserSuppliedArgs \(2\) is supplied, flags is also required/);
+  });
+
 
   it("[annotateConstructor] will fail if prototype not found on function", () => {
     function MyConstructor () {
@@ -570,22 +572,22 @@ describe("Injector", () => {
   });
 
   it("[createProvider] will incorporate a user-supplied factory callback into a new Provider class", () => {
-    // GIVEN a factory function that takes dependencies and returns an object
-    const factoryFunction = (display, printer) => ({
+    // GIVEN a provider function that takes dependencies and returns an object
+    const providerFunction = (display, printer) => ({
       display,
       printer,
     });
 
     // WHEN I call createProvider with the factory function, number of additional parameters, and dep names
-    const provider = injector.createProvider(factoryFunction, 0, "display", "printer");
+    const provider = injector.createProvider(providerFunction, 0, "display", "printer");
 
     // THEN new Provider was built as expected
     expect(provider.dependencies).toEqual(["display", "printer"]);
     expect(provider.numberOfUserSuppliedArgs).toEqual(0);
 
-    // AND the Provider's class has the factoryFunction available via injectableMetadata
-    const providerFunction = injectableMetadata.getProviderFunction(provider);
-    const createdObject = providerFunction("myDisplay", "myPrinter");
+    // AND the Provider's class has the providerFunction available via injectableMetadata
+    const retrievedProviderFunction = injectableMetadata.getProviderFunction(provider);
+    const createdObject = retrievedProviderFunction("myDisplay", "myPrinter");
     expect(createdObject.display).toEqual("myDisplay");
     expect(createdObject.printer).toEqual("myPrinter");
   });
@@ -638,7 +640,7 @@ describe("Injector", () => {
         myObject: anObject,
         extraParam1,
         extraParam2
-      }), 2, "anObject");
+      }), Scope.PROTOTYPE, 2, "anObject");
 
     moduleGroup.register("myFactoryBuiltObject", moduleFactory);
 
@@ -652,6 +654,16 @@ describe("Injector", () => {
 
     expect(instance !== anotherInstance).toBe(true); // , "factory function was called twice due to prototype scope");
   });
+
+  it('[PROTOTYPE, PROVIDER] will throw a special Error message if numOfUserSuppliedArgs is supplied but flags is not', () => {
+    expect(() => {
+      injector.createProvider((extraParam1, extraParam2) => ({
+        extraParam1,
+        extraParam2
+      }), 2, 'anObject');
+    }).toThrow(/flags parameter required; when numOfUserSuppliedArgs \(2\) is supplied, flags is also required/)
+  });
+
 
   test.each`
     scope                 | type

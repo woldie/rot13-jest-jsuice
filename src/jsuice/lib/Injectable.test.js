@@ -204,13 +204,13 @@ describe("injectable", () => {
     expect(instance.aField).toEqual("hi there injected1 injected2 assisted1 assisted2");
   });
 
-  function threeParamFactoryFunction(injected1, injected2, assisted1) {
+  function threeParamProviderFunction(injected1, injected2, assisted1) {
     return { aField: `hi there ${injected1} ${injected2} ${assisted1}` };
   }
 
   it("[newInstance] will throw an error while creating a new PROVIDER with wrong number of addl parameters passed", () => {
     const myProvider = new MyProvider([], [], 1);
-    injectableMetadata.setProvider(myProvider, threeParamFactoryFunction);
+    injectableMetadata.setProvider(myProvider, threeParamProviderFunction);
 
     const factoryInjectable = new Injectable(myProvider, "myProvider");
 

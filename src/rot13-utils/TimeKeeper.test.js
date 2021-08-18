@@ -17,7 +17,7 @@ describe('TimeKeeper', () => {
   function makeCollaboratorsMockedInfrastructure() {
     [ timeKeeper, clockWrap ] = injector.collaborators(
       injector.systemUnderTest('timeKeeper'),
-      injector.partialMock('clockWrap', require('../rot13-service/infrastructure/ClockWrap.mock'))
+      injector.partialMock('clockWrap')
     );
   }
 

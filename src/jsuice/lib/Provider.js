@@ -1,4 +1,5 @@
 /* eslint-disable no-unused-vars */
+
 /**
  * Base class for all Providers.
  *
@@ -6,7 +7,7 @@
  */
 class Provider {
   /**
-   * @param {!Array.<(String|FactoryFunction)>} dependencies
+   * @param {!Array.<(String|Instancer)>} dependencies
    * @param {!Array.<InjectedParamType>} injectedParamTypes
    * @param {!Number} numberOfUserSuppliedArgs
    */
@@ -14,13 +15,13 @@ class Provider {
     /**
      * The names of injectables that will be instantiated for the module when it is instantiated.
      * @name Provider#dependencies
-     * @type {Array.<(String|FactoryFunction)>}
+     * @type {!Array.<(String|Instancer)>}
      */
     this.dependencies = dependencies;
 
     /**
      * @name Provider#injectedParamTypes
-     * @type {!Array<InjectedParamType>}
+     * @type {!Array.<InjectedParamType>}
      */
     this.injectedParamTypes = injectedParamTypes;
 
@@ -29,7 +30,7 @@ class Provider {
      * by the {@link Injector} that will be supplied by the end-user.
      *
      * @name Provider#numberOfUserSuppliedArgs
-     * @type {Number}
+     * @type {!Number}
      */
     this.numberOfUserSuppliedArgs = numberOfUserSuppliedArgs;
   }

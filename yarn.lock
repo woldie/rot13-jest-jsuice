@@ -1527,6 +1527,11 @@ call-bind@^1.0.0, call-bind@^1.0.2:
     function-bind "^1.1.1"
     get-intrinsic "^1.0.2"
 
+call-id@^0.1.0:
+  version "0.1.0"
+  resolved "https://registry.yarnpkg.com/call-id/-/call-id-0.1.0.tgz#28d477857e9639b856aec0cd22acc22ceae7ad12"
+  integrity sha512-iAv5z+2e3vft6isR73F4GuMdouNsgVXWILISiSCwP2NYW+lIg8N0pY0DGYKsLrrBR9MYcSG8zehiZqUsgcggcA==
+
 callsites@^3.0.0:
   version "3.1.0"
   resolved "https://registry.yarnpkg.com/callsites/-/callsites-3.1.0.tgz#b3630abd8943432f54b3f0519238e33cd7df2f73"

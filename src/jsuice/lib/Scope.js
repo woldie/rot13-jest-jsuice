@@ -14,9 +14,9 @@ const forEach = require('lodash.foreach');
 const Scope = {};
 
 forEach({
-  'SINGLETON': 1,
-  'APPLICATION': 2,
-  'PROTOTYPE': 4
+  'SINGLETON': 8192,
+  'APPLICATION': 16384,
+  'PROTOTYPE': 32768
 }, (value, key) => {
   Object.defineProperty(Scope, key, {
     configurable: false,

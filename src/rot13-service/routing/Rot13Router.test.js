@@ -13,9 +13,8 @@ const VALID_METHOD = 'POST';
 const VALID_HEADERS = { 'content-type': "application/json" };
 
 describe('Rot13Router', () => {
-  let /** @type {TimeKeeper} */ timeKeeper;
   let /** @type {Rot13Router} */ rot13Router;
-  let /** @type {FactoryFunction<HttpRequest>} */ httpRequestFactory;
+  let /** @type {Instancer<HttpRequest>} */ httpRequestFactory;
   let /** @type {Object.<String,*>} */ context;
   let /** @type {Clock} */ fakeTimers; // Sinon fake timers
   let /** @type {NodeRequest} */ nodeRequest;
@@ -24,21 +23,20 @@ describe('Rot13Router', () => {
   let /** @type {Rot13} */ rot13;
 
   beforeEach(() => {
-    [ rot13Response, rot13, timeKeeper, httpRequestFactory, rot13Router ] = injector.collaborators(
+    [ rot13Response, rot13, httpRequestFactory, rot13Router ] = injector.collaborators(
       'rot13Response',
       'rot13',
-      injector.partialMock('timeKeeper', require('../infrastructure/ClockWrap.mock')),
-      injector.factoryFunction('httpRequest', require('../infrastructure/NodeRequest.mock')),
+      injector.instancer('httpRequest'),
       injector.systemUnderTest('rot13Router')
-    )
+    );
 
     context = injector.getInjectorContext();
 
     // the sinon fakeTimers which were set in the injector context by TimeKeeper.mock
     fakeTimers = context.fakeTimers;
 
-    httpRequest = httpRequestFactory();
     nodeRequest = context.nodeRequest;
+    httpRequest = httpRequestFactory(nodeRequest);
   });
 
   describe('happy path', () => {
@@ -101,7 +99,7 @@ describe('Rot13Router', () => {
     // tick the fakeTimer until its now millisecond is an even number
     let now;
     do {
-      now = context.fakeTimers.tick(1);
+      now = fakeTimers.tick(1);
     } while (now & 1);  // will be falsy when now is an even number
 
     return rot13Router.routeAsync(httpRequest, clock);

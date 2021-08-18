@@ -13,6 +13,8 @@ const isArray = require('lodash.isarray');
 const isFunction = require('lodash.isfunction');
 const isUndefined = require('lodash.isundefined');
 const classInfo = require('class-info');
+const { getCallId } = require('call-id');
+
 const injector = require('../jsuice');
 const Scope = require('../jsuice/lib/Scope');
 const InjectableType = require('../jsuice/lib/InjectableType');
@@ -35,6 +37,11 @@ const sociableInjector = injector.applyExtensions((injectableMetadata, dependenc
   let shadowedReal = {};
   let partialMockFactories = {};
   let testCaseContext = null;
+
+  /**
+   * @type {WeakMap.<InjectableMetadata.Collection,Function>}
+   */
+  const defaultCustomizers = new WeakMap();
 
   /**
    * @ignore
@@ -307,8 +314,8 @@ const sociableInjector = injector.applyExtensions((injectableMetadata, dependenc
         } else if (realKeys.indexOf(collaboratorName) >= 0) {
           collaboratorsAndDependencies[collaboratorName] = injector.getInstance(collaboratorName);
         } else if (partialMockKeys.indexOf(collaboratorName) >= 0) {
-          if (has(testCollaborators.factoryFunctions, collaboratorName)) {
-            collaboratorsAndDependencies[collaboratorName] = testCollaborators.factoryFunctions[collaboratorName];
+          if (has(testCollaborators.instancerFunctions, collaboratorName)) {
+            collaboratorsAndDependencies[collaboratorName] = testCollaborators.instancerFunctions[collaboratorName];
           } else {
             collaboratorsAndDependencies[collaboratorName] = injector.getInstance(collaboratorName);
           }
@@ -316,76 +323,6 @@ const sociableInjector = injector.applyExtensions((injectableMetadata, dependenc
           collaboratorsAndDependencies[collaboratorName] = injector.getInstance(collaboratorName);
         }
       });
-
-      // const realCollaborators = [ ...sutKeys, ...testCollaborators.reals ];
-      // reduce(realCollaborators, (accumulator, collaboratorName) => {
-      //   const sutConfig = testCollaborators.sut[collaboratorName];
-      //
-      //   // if real is the sut, we might also have assistedInjectionParams
-      //   const assistedInjectionParams = sutConfig ? sutConfig.assistedInjectionParams : [];
-      //
-      //   accumulator.collaboratorsAndDependencies[collaboratorName] = shadowedReal[collaboratorName] === UNINITIALIZED ?
-      //     injector.getInstance.apply(injector, [ collaboratorName, ...assistedInjectionParams ]) :
-      //
-      //     // TODO: these "shadowed" containers are really meant to capture the SUT and its dependencies as they are
-      //     //  instantiated, and only while collaborators is running.  They should be captured in the
-      //     //  getInstanceForInjectable, not here.  And we should sort the injectable names by dependent order here so
-      //     //  that we get capture the dependencies from bottom up.  Also, factory functions should not be allowed to be
-      //     //  re-entrant with getInstance - they must be called standalone or else we risk getting weird circular
-      //     //  dependencies.
-      //     shadowedReal[collaboratorName][0];
-      //
-      //   return accumulator;
-      // }, {
-      //   collaboratorsAndDependencies
-      // });
-      //
-      // reduce(shadowedPartialMocked, (accumulator, value, collaboratorName) => {
-      //   if (shadowedPartialMocked[collaboratorName] === UNINITIALIZED) {
-      //
-      //     if (has(testCollaborators.factoryFunctions, collaboratorName)) {
-      //       accumulator.collaboratorsAndDependencies[collaboratorName] =
-      //         testCollaborators.factoryFunctions[collaboratorName];
-      //     } else {
-      //       const collabConfig = testCollaborators.partialMocks[collaboratorName];
-      //       const partialMock = injector.getInstance.apply(injector, [
-      //         collaboratorName,
-      //         ...collabConfig.assistedInjectionParams
-      //       ]);
-      //
-      //       if (collabConfig && collabConfig.customizer) {
-      //         collabConfig.customizer(collaboratorName, partialMock);
-      //       }
-      //
-      //       accumulator.collaboratorsAndDependencies[collaboratorName] = partialMock;
-      //     }
-      //   } else {
-      //     accumulator.collaboratorsAndDependencies[collaboratorName] = shadowedPartialMocked[collaboratorName];
-      //   }
-      //
-      //   return accumulator;
-      // }, {
-      //   collaboratorsAndDependencies
-      // });
-      //
-      // reduce(shadowedMocked, (accumulator, value, collaboratorName) => {
-      //   if (shadowedMocked[collaboratorName] === UNINITIALIZED) {
-      //     const mock = injector.getInstance(collaboratorName);
-      //
-      //     const collabConfig = testCollaborators.mocks[collaboratorName];
-      //     if (collabConfig && collabConfig.customizer) {
-      //       collabConfig.customizer(collaboratorName, mock);
-      //     }
-      //
-      //     accumulator.collaboratorsAndDependencies[collaboratorName] = mock;
-      //   } else {
-      //     accumulator.collaboratorsAndDependencies[collaboratorName] = shadowedMocked[collaboratorName];
-      //   }
-      //
-      //   return accumulator;
-      // }, {
-      //   collaboratorsAndDependencies
-      // });
 
       // return the requested collaborators in the order they were requested
       return map(testCollaborators.collaboratorNames, name => collaboratorsAndDependencies[name]);
@@ -406,12 +343,36 @@ const sociableInjector = injector.applyExtensions((injectableMetadata, dependenc
     return testCaseContext;
   };
 
+  const JAVASCRIPT_FILE = /^(.*)\.js$/;
+
+  function getDefaultCustomizer(metadataCollection) {
+    if (!metadataCollection.fetchedDefaultCustomizer) {
+      metadataCollection.fetchedDefaultCustomizer = true;
+
+      if (JAVASCRIPT_FILE.test(metadataCollection.moduleFilePath)) {
+        const mockFilename = metadataCollection.moduleFilePath.replace(JAVASCRIPT_FILE, '$1.mock.js');
+
+        try {
+          const mockCustomizer = /** @type {CustomizerFunction} */ module.require(mockFilename);
+
+          if (mockCustomizer) {
+            defaultCustomizers.set(metadataCollection, mockCustomizer);
+          }
+        } catch (e) {
+          // no default mock defined for ctor
+        }
+      }
+    }
+
+    return defaultCustomizers.get(metadataCollection);
+  }
+
   /**
    * Configures {@link injector#collaborators} to return a mock for injectableName.
    *
    * @memberOf Injector.prototype
    * @param {String} injectableName name of the injectable that you want the injector to mock
-   * @param {?function(injectableName:String,mockObj:td.DoubledObject<*>,context:Object<String,*>)} customizer
+   * @param {CustomizerFunction=} customizer
    * optional callback that gets called with the mockObj created to mimic injectableName's injectable.  You may
    * further customize mockObj with the
    * {@link https://github.com/testdouble/testdouble.js#tdwhen-for-stubbing-responses td.when} API in the customizer.
@@ -423,6 +384,15 @@ const sociableInjector = injector.applyExtensions((injectableMetadata, dependenc
    */
   Injector.prototype.mock = function(injectableName, customizer) {
     const context = this.getInjectorContext();
+
+    if (!customizer) {
+      const injectable = injector.findInjectableByName(injectableName);
+      if (injectable) {
+        const metadataCollection = injectableMetadata.findOrAddMetadataFor(injectable.subject);
+        customizer = getDefaultCustomizer(metadataCollection);
+      }
+    }
+
     if (customizer) {
       return new MockCollaborator(injectableName, mockObj => {
         customizer(injectableName, mockObj, context);
@@ -441,7 +411,7 @@ const sociableInjector = injector.applyExtensions((injectableMetadata, dependenc
    *
    * @memberOf Injector.prototype
    * @param {String} injectableName name of the injectable that you want the injector to partial mock
-   * @param {?function(injectableName:String,mockObj:td.DoubledObject<*>,context:Object<String,*>)} customizer
+   * @param {CustomizerFunction=} customizer
    * optional callback that gets called with the mockObj created to mimic injectableName's injectable.  You may
    * further customize mockObj with the
    * {@link https://github.com/testdouble/testdouble.js#tdwhen-for-stubbing-responses td.when} API in the customizer.
@@ -462,6 +432,14 @@ const sociableInjector = injector.applyExtensions((injectableMetadata, dependenc
     }
 
     const assistedInjectionParams = (args.length > 2) ? args.slice(2) : [];
+
+    if (!customizer) {
+      const injectable = injector.findInjectableByName(injectableName);
+      if (injectable) {
+        const metadataCollection = injectableMetadata.findOrAddMetadataFor(injectable.subject);
+        customizer = getDefaultCustomizer(metadataCollection);
+      }
+    }
 
     if (customizer) {
       const context = this.getInjectorContext();
@@ -517,16 +495,24 @@ const sociableInjector = injector.applyExtensions((injectableMetadata, dependenc
   };
 
   /**
-   * This is an extension of the base Injector's factoryFunction method to allow tests to generate default parameters
-   * for assisted injections so that individual tests need not repeatedly do so.
+   * This is an extension of {@link Injector}'s {@link Injector#instancer instancer} method to allow tests to supply
+   * default parameters for assisted injections so that individual tests need not repeatedly do so.
+   *
+   * <p>{@link Instancer} functions can be passed to {@link Injector#collaborators collaborators} to describe an
+   * injectable parameter and characterize the instancer for the current test case.  When {@link Instancer#instancer}
+   * is used in the context of {@link Injector#collaborators}, each parameter passed is expected to be a function that
+   * the test passes to supply a default user-supplied arg for when {@link Injector#getInstance} is called as part of
+   * the setup of the test case.  Parameters passed to the {@link Instancer} function in the context of the test always
+   * take precedence over the assistedInjectionDefaultParams passed to {@link Injector#instancer} here.
+   * assistedInjectionDefaultParams are optional.
    *
    * @memberOf Injector.prototype
    * @param {String} injectableName
    * @param {...function():*} assistedInjectionDefaultParams 0-or-more functions for generating default assisted
-   * injection parameters for injectableName
-   * @returns {FactoryFunction}
+   * injection parameters for injectableName.  assistedInjectionDefaultParams are optional
+   * @returns {Instancer}
    */
-  Injector.prototype.factoryFunction = function(injectableName) {
+  Injector.prototype.instancer = function(injectableName) {
     const self = this;
 
     const assistedInjectionDefaults = (arguments.length > 1) ? Array.from(arguments).slice(1) : [];
@@ -534,7 +520,7 @@ const sociableInjector = injector.applyExtensions((injectableMetadata, dependenc
     /**
      * @param {...*} userSuppliedArgs
      */
-    function theFactory() {
+    function theInstancer() {
       const userSuppliedArgs = Array.from(arguments);
       const overlaidAtopDefaults = [];
 
@@ -544,19 +530,21 @@ const sociableInjector = injector.applyExtensions((injectableMetadata, dependenc
         } else {
           const defaultCb = assistedInjectionDefaults[i];
           if (!isFunction(defaultCb)) {
-            throw new Error(`factoryFunction for injectable ${
+            throw new Error(`instancer for injectable ${
               injectableName} received an assistedInjectionDefaultParam that was not a function`);
           }
           overlaidAtopDefaults.push(defaultCb());
         }
       }
 
-      return self.getInstance.apply(self, [injectableName, ...overlaidAtopDefaults]);
+      // overlaidAtopDefaults MUST be the expected length of userSuppliedArgs or will result in a standard J'suice
+      // validation error inside the call to getInstance
+      return self.getInstance.apply(self, [ injectableName, ...overlaidAtopDefaults ]);
     }
 
-    self.isFactoryFunction.set(theFactory, injectableName);
+    self.isInstancerFunction.set(theInstancer, injectableName);
 
-    return theFactory;
+    return theInstancer;
   };
 
   /**

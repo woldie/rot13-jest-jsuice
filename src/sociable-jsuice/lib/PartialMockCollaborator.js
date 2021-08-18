@@ -2,7 +2,7 @@ class PartialMockCollaborator {
   /**
    * @param {String} injectableName
    * @param {Array.<*>} assistedInjectionParams
-   * @param {MockCustomizerCallback=} customizer
+   * @param {MockCustomizerClosure=} customizer
    * @package
    */
   constructor(injectableName, assistedInjectionParams, customizer) {
@@ -22,7 +22,7 @@ class PartialMockCollaborator {
 
     /**
      * @name PartialMockCollaborator#customizer
-     * @type {(MockCustomizerCallback|undefined)}
+     * @type {(MockCustomizerClosure|undefined)}
      * @package
      */
     this.customizer = customizer;

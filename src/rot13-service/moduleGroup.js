@@ -10,5 +10,6 @@ injector.moduleGroup('rot13Service',
   'clockWrap', require('./infrastructure/ClockWrap'),
   'timeKeeper', require('../rot13-utils/TimeKeeper'),
   'commandLine', require('./infrastructure/CommandLine'),
-  'currentProcess', require('./infrastructure/CurrentProcess')
+  'currentProcess', require('./infrastructure/CurrentProcess'),
+  'nodeServerFactory', require('./infrastructure/NodeServerFactory')
 );

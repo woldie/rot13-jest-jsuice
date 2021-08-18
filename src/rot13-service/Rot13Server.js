@@ -1,8 +1,17 @@
 const injector = require('../jsuice');
 
-class Rot13Server {
-  constructor() {
+const { Scope } = injector;
 
+class Rot13Server {
+  /**
+   * @param {NodeServerFactory} nodeServerFactory
+   */
+  constructor(nodeServerFactory) {
+    /**
+     * @name Rot13Server#nodeServerFactory
+     * @type {NodeServerFactory}
+     */
+    this.nodeServerFactory = nodeServerFactory;
   }
 
   async launch() {
@@ -10,6 +19,4 @@ class Rot13Server {
   }
 }
 
-injector.annotateConstructor(Rot13Server, injector.Scope.SINGLETON);
-
-module.exports = Rot13Server;
+module.exports = injector.annotateConstructor(Rot13Server, Scope.SINGLETON, 'nodeServerFactory');

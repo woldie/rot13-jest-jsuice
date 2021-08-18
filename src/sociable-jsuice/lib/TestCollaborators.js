@@ -24,9 +24,9 @@ class TestCollaborators {
    * @param {Object.<String,MockCollaborator>} mocks
    * @param {Object.<String,PartialMockCollaborator>} partialMocks
    * @param {Array.<String>} collaboratorNames
-   * @param {Object.<String,FactoryFunction>} factoryFunctions
+   * @param {Object.<String,Instancer>} instancerFunctions
    */
-  constructor(sut, reals, mocks, partialMocks, collaboratorNames, factoryFunctions) {
+  constructor(sut, reals, mocks, partialMocks, collaboratorNames, instancerFunctions) {
     /**
      * @name TestCollaborators#sut
      * @type {Object.<String,SystemUnderTest>}
@@ -58,10 +58,10 @@ class TestCollaborators {
     this.collaboratorNames = collaboratorNames;
 
     /**
-     * @name TestCollaborators#factoryFunctions
-     * @type {Object.<String, FactoryFunction>}
+     * @name TestCollaborators#instancerFunctions
+     * @type {Object.<String,Instancer>}
      */
-    this.factoryFunctions = factoryFunctions;
+    this.instancerFunctions = instancerFunctions;
   }
 
   /**
@@ -85,19 +85,19 @@ class TestCollaborators {
     const reals = [];
     const mocks = {};
     const partialMocks = {};
-    const factoryFunctions = {};
+    const instancerFunctions = {};
 
     forEach(collaboratorDescriptors, collaborator => {
       if (isString(collaborator)) {
         validateNameNotAlreadyUsed(collaborator);
         uncategorizedCollaborators.push(collaborator);
         collaboratorNames.push(collaborator);
-      } else if (isFunction(collaborator) && injector.isFactoryFunction.has(collaborator)) {
-        const factoryFunctionInjectableName = injector.isFactoryFunction.get(collaborator);
-        validateNameNotAlreadyUsed(factoryFunctionInjectableName)
-        partialMocks[factoryFunctionInjectableName] = `${factoryFunctionInjectableName} factory function`;
-        collaboratorNames.push(factoryFunctionInjectableName);
-        factoryFunctions[factoryFunctionInjectableName] = collaborator;
+      } else if (isFunction(collaborator) && injector.isInstancerFunction.has(collaborator)) {
+        const instancerFunctionInjectableName = injector.isInstancerFunction.get(collaborator);
+        validateNameNotAlreadyUsed(instancerFunctionInjectableName)
+        partialMocks[instancerFunctionInjectableName] = `${instancerFunctionInjectableName} instancer function`;
+        collaboratorNames.push(instancerFunctionInjectableName);
+        instancerFunctions[instancerFunctionInjectableName] = collaborator;
       } else if (isObject(collaborator)) {
         if (collaborator instanceof MockCollaborator) {
           validateNameNotAlreadyUsed(collaborator.injectableName);
@@ -172,7 +172,7 @@ class TestCollaborators {
     const sutObj = {};
     sutObj[sut[0].injectableName] = sut[0];
 
-    return new TestCollaborators(sutObj, reals, mocks, partialMocks, collaboratorNames, factoryFunctions);
+    return new TestCollaborators(sutObj, reals, mocks, partialMocks, collaboratorNames, instancerFunctions);
   }
 }
 

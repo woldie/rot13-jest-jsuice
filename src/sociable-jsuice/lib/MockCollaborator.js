@@ -1,7 +1,7 @@
 class MockCollaborator {
   /**
    * @param {String} injectableName
-   * @param {MockCustomizerCallback=} customizer
+   * @param {MockCustomizerClosure=} customizer
    * @package
    */
   constructor(injectableName, customizer) {
@@ -14,7 +14,7 @@ class MockCollaborator {
 
     /**
      * @name MockCollaborator#customizer
-     * @type {(MockCustomizerCallback|undefined)}
+     * @type {(MockCustomizerClosure|undefined)}
      * @package
      */
     this.customizer = customizer;
