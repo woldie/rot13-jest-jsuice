@@ -187,11 +187,9 @@ class DependencyGraph {
    * @package
    */
   getAllDependenciesAndDescendants(whichInjectable) {
-    /** @type {Array.<InjectableVertex>} */
-    const dependencies = [];
+    const dependencies = /** @type {Array.<InjectableVertex>} */ [];
 
-    /** @type {InjectableVertex} */
-    const injectableVertex = this.findOrCreateVertexBySearchQuery({
+    const injectableVertex = /** @type {InjectableVertex} */ this.findOrCreateVertexBySearchQuery({
       type: VertexType.INJECTABLE,
       name: whichInjectable
     });
@@ -217,9 +215,7 @@ class DependencyGraph {
     const unvisitedDependencyVertices = this.db.v(vertex._id)
       .out(EdgeLabel.INJECTABLE_PARAM)
       .unique()
-      .filter(vert =>
-        dependencies.indexOf(vert) < 0
-      )
+      .filter(vert => dependencies.indexOf(vert) < 0)
       .run();
 
     unvisitedDependencyVertices.forEach(dependencyVertex => {

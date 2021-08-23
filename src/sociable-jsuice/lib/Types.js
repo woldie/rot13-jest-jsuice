@@ -18,7 +18,7 @@ const td = require('testdouble');
  */
 
 /**
- * @typedef {(String|SystemUnderTest|MockCollaborator|PartialMockCollaborator|Instancer)} Collaborator
+ * @typedef {(String|SystemUnderTest|SystemUnderTestInstancer|MockCollaborator|PartialMockCollaborator|Instancer)} Collaborator
  * @template T
  */
 

@@ -9,6 +9,7 @@ module.exports = {
   'check-coverage': !process.env.CONFIG_FILE || !/watch/.test(process.env.CONFIG_FILE),
   exclude: [
     '**/*.functional.js',
+    '**/*.unctional.js',
     '**/*.test.js',
   ],
   reporter: ['json-summary', 'lcov', 'html', 'text'],

@@ -13,6 +13,8 @@ const isFunction = require('lodash.isfunction');
 const SystemUnderTest = require('./SystemUnderTest');
 const PartialMockCollaborator = require('./PartialMockCollaborator');
 const MockCollaborator = require('./MockCollaborator');
+const SystemUnderTestInstancer = require('./SystemUnderTestInstancer');
+const { SOCIABLE, FUNCTIONAL, STAGING, TEST, PROD } = require('./InjectorEnvironment');
 
 /**
  * @ignore
@@ -112,6 +114,12 @@ class TestCollaborators {
           sut.push(collaborator);
           reals.push(collaborator.injectableName);
           collaboratorNames.push(collaborator.injectableName);
+        } else if (collaborator instanceof SystemUnderTestInstancer) {
+          validateNameNotAlreadyUsed(collaborator.injectableName);
+          sut.push(collaborator);
+          reals.push(collaborator.injectableName);
+          collaboratorNames.push(collaborator.injectableName);
+          instancerFunctions[collaborator.injectableName] = injector.instancer(collaborator.injectableName);
         } else {
           throw new Error(`Unknown collaborator type: ${collaborator}`);
         }
@@ -138,8 +146,18 @@ class TestCollaborators {
           reals.push(collaboratorName);
           addRealCollaboratorDependenciesToLists(collaboratorName);
         }
-      } else if (!has(mocks, collaboratorName)) {
-        mocks[collaboratorName] = new MockCollaborator(collaboratorName);
+      } else {
+        injector.environmentSetup(SOCIABLE, injectorEnv => {
+          if (!has(mocks, collaboratorName)) {
+            mocks[collaboratorName] = new MockCollaborator(collaboratorName);
+          }
+        });
+        injector.environmentSetup([ FUNCTIONAL, STAGING, TEST, PROD ], injectorEnv => {
+          if (!has(partialMocks, collaboratorName)) {
+            // note, the empty assistedInjectionParams array passed here could cause
+            partialMocks[collaboratorName] = new PartialMockCollaborator(collaboratorName, []);
+          }
+        });
       }
     }
 

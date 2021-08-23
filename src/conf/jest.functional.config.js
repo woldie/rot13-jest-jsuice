@@ -4,7 +4,7 @@ module.exports = {
   moduleFileExtensions: ['js'],
   roots: [`${__dirname}/..`],
   testEnvironment: 'node',
-  testMatch: [`**/*.functional.js`],
+  testMatch: ['**/*.functional.js', '**/*.unctional.js'],
   globalSetup: `${__dirname}/jest.functional.globalSetup.js`,
   globalTeardown: `${__dirname}/jest.functional.globalTeardown.js`,
   setupFilesAfterEnv: ['jest-expect-message', `${__dirname}/jest.functional.setup.js`],

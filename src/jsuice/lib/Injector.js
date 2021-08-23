@@ -267,6 +267,12 @@ class Injector {
     const metaObj = {
       moduleFilePath: getCallId(1).file,
       injectedParams: injectedParamsArray,
+      injectedParamNames: map(injectedParamsArray, param => {
+        if (this.isInstancerFunction.has(param)) {
+          return this.isInstancerFunction.get(param);
+        }
+        return param;
+      }),
       injectedParamTypes: map(injectedParamsArray, (injectedParam, idx) =>
         this.validateInjectedParam(injectedParam, idx, 'annotateConstructor', `ctor: ${
           InjectorUtils.getFunctionSignature(ctor)}`)),
@@ -470,6 +476,12 @@ class Injector {
     const metaObj = {
       moduleFilePath: getCallId(1).file,
       injectedParams,
+      injectedParamNames: map(injectedParams, param => {
+        if (this.isInstancerFunction.has(param)) {
+          return this.isInstancerFunction.get(param);
+        }
+        return param;
+      }),
       injectedParamTypes: map(injectedParams, (injectedParam, idx) =>
         this.validateInjectedParam(injectedParam, idx, 'createProvider', `providerFunction: ${
           InjectorUtils.getFunctionSignature(providerFunction)}`)),
@@ -554,8 +566,9 @@ class Injector {
 
     for (let i = 0, ii = this.moduleGroups.length; i < ii; i += 1) {
       const { injectables } = this.moduleGroups[i];
-      for (let j = 0, jj = injectables.length; j < jj; j += 1) {
-        const injectable = injectables[j];
+      const injectableNames = Object.keys(injectables);
+      for (let j = 0, jj = injectableNames.length; j < jj; j += 1) {
+        const injectable = injectables[injectableNames[j]];
 
         if (booleanExpr(injectable)) {
           resultSet.push(injectable);
@@ -824,7 +837,7 @@ class Injector {
         case InjectedParamType.INJECTABLE_NAME:
           // assistedInjectionParams is never passed along to dependencies, always passing empty set from this point on
           return this.getInstanceRecursion(injectedParam, nameHistory, scopeHistory, []);
-        case InjectedParamType.FACTORY_FUNCTION:
+        case InjectedParamType.INSTANCER_FUNCTION:
           return injectedParam;
         default:
           throw new Error(`Unknown InjectableParamType for injectable ${injectable.name}, `)

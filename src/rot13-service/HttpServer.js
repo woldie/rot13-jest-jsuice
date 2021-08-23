@@ -1,5 +1,7 @@
-/* eslint-disable prefer-rest-params */
+/* eslint-disable prefer-rest-params,no-unused-vars */
 // const Log = require("infrastructure/log");
+
+const { IncomingRequest, ServerResponse } = require('http');
 const { signatureCheck, getTypeErrors } = require('../rot13-utils/typeCheck');
 
 const injector = require('../jsuice');
@@ -9,7 +11,7 @@ const RESPONSE_TYPE = { status: Number, headers: Object, body: String };
 
 /** Wrapper for Node HTTP server */
 class HttpServer {
-  constructor(nodeServerFactory, httpRequestInstancer) {
+  constructor(nodeServerFactory) {
     /**
      * factory for Node Servers
      *
@@ -17,14 +19,6 @@ class HttpServer {
      * @type {NodeServerFactory}
      */
     this.nodeServerFactory = nodeServerFactory;
-
-    /**
-     * Used to instance wrappers nodeRequest objects
-     *
-     * @name HttpServer#httpRequestInstancer
-     * @type {Instancer<HttpRequest>}
-     */
-    this.httpRequestInstancer = httpRequestInstancer;
 
     /**
      * @name HttpServer#nodeServer
@@ -46,6 +40,7 @@ class HttpServer {
 
     await new Promise((resolve, reject) => {
       this.nodeServer.on('error', err => {
+        this.nodeServer = null;
         reject(new Error(`Couldn't start server due to error: ${err.message}`));
       });
 
@@ -54,7 +49,6 @@ class HttpServer {
       });
 
       this.nodeServer.on('listening', () => {
-        this.nodeServer = null;
         resolve();
       });
 
@@ -78,6 +72,13 @@ class HttpServer {
     });
   }
 
+  /**
+   *
+   * @param {IncomingRequest} nodeRequest
+   * @param {ServerResponse} nodeResponse
+   * @param {function(httpRequest: HttpRequest)} onRequestAsync
+   * @returns {Promise<void>}
+   */
   async dispatchRequest(nodeRequest, nodeResponse, onRequestAsync) {
     const { status, headers, body } = await this.generateResponse(nodeRequest, onRequestAsync);
     nodeResponse.statusCode = status;
@@ -85,9 +86,16 @@ class HttpServer {
     nodeResponse.end(body);
   }
 
+  /**
+   *
+   * @param {IncomingRequest} nodeRequest
+   * @param {function(httpRequest: HttpRequest)} onRequestAsync
+   * @returns {Promise<{headers: Object.<String,String>, body: String, status: Number}>}
+   */
   async generateResponse(nodeRequest, onRequestAsync) {
     try {
-      const response = await onRequestAsync(this.httpRequestInstancer(nodeRequest));
+      const httpRequest = this.httpRequestInstancer(nodeRequest);
+      const response = await onRequestAsync(httpRequest);
       const typeError = getTypeErrors(response, RESPONSE_TYPE);
       if (typeError !== null) {
         // log.emergency({ message: "request handler returned invalid response", response });
@@ -110,22 +118,4 @@ function internalServerError() {
   };
 }
 
-//
-// const nullHttp = {
-//   createServer() {
-//     return new NullNodeServer();
-//   }
-// };
-//
-// class NullNodeServer extends EventEmitter {
-//   listen() {
-//     setImmediate(() => this.emit("listening"));
-//   }
-//   close() {
-//     setImmediate(() => this.emit("close"));
-//   }
-// }
-
-module.exports = injector.annotateConstructor(HttpServer, Scope.PROTOTYPE,
-  'nodeServerFactory',
-  injector.instancer('httpRequest'));
+module.exports = injector.annotateConstructor(HttpServer, Scope.PROTOTYPE, 'nodeServerFactory');

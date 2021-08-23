@@ -19,6 +19,7 @@ const injector = require('../jsuice');
 const Scope = require('../jsuice/lib/Scope');
 const InjectableType = require('../jsuice/lib/InjectableType');
 const SystemUnderTest = require('./lib/SystemUnderTest');
+const SystemUnderTestInstancer = require('./lib/SystemUnderTestInstancer');
 const PartialMockCollaborator = require('./lib/PartialMockCollaborator');
 const MockCollaborator = require('./lib/MockCollaborator');
 const InjectorEnvironment = require('./lib/InjectorEnvironment');
@@ -96,7 +97,7 @@ const sociableInjector = injector.applyExtensions((injectableMetadata, dependenc
         if (!inRehearsals) {
           return realMethod.apply(this, Array.from(arguments));
         }
-      }); // DO NOT use fat arrow here
+      }); // DO NOT use fat arrow here so we get the 'this' sent to us by the testdouble library
     });
 
     forEach(typeInfo.staticMethods, staticMethodName => {
@@ -151,8 +152,8 @@ const sociableInjector = injector.applyExtensions((injectableMetadata, dependenc
       throw new Error('Call injector.collaborators before trying to construct instances with the injector');
     }
 
+    const metaObj = injectableMetadata.findOrAddMetadataFor(injectable.subject);
     if (has(shadowedMocked, injectable.name)) {
-      const metaObj = injectableMetadata.findOrAddMetadataFor(injectable.subject);
       if (metaObj.numberOfUserSuppliedArgs > 0) {
         throw new Error(`Assisted injection not yet supported in sociable-jsuice tests, ${
           injectable.name} was the requested injectable.`);
@@ -161,6 +162,11 @@ const sociableInjector = injector.applyExtensions((injectableMetadata, dependenc
       const instance = injectable.type === InjectableType.INJECTED_CONSTRUCTOR ?
         td.instance(injectable.subject) :
         td.object();
+
+      const defaultCustomizer = this.getDefaultCustomizer(metaObj);
+      if (defaultCustomizer) {
+        defaultCustomizer(injectable.name, instance, this.getInjectorContext());
+      }
 
       const collabConfig = testCollaborators.mocks[injectable.name];
       if (collabConfig && collabConfig.customizer) {
@@ -208,6 +214,11 @@ const sociableInjector = injector.applyExtensions((injectableMetadata, dependenc
         default:
           throw new Error(`Partial mocks only supported for constructor functions or providers in sociable tests, ${
             injectable.name} was the requested injectable.`);
+      }
+
+      const defaultCustomizer = this.getDefaultCustomizer(metaObj);
+      if (defaultCustomizer) {
+        defaultCustomizer(injectable.name, instance, this.getInjectorContext());
       }
 
       if (collabConfig && collabConfig.customizer) {
@@ -281,6 +292,7 @@ const sociableInjector = injector.applyExtensions((injectableMetadata, dependenc
       const realKeys = testCollaborators.reals;
       const mockKeys = keys(testCollaborators.mocks);
       const partialMockKeys = keys(testCollaborators.partialMocks);
+      const instancers = keys(testCollaborators.instancerFunctions);
 
       forEach(realKeys, collabName => {
         shadowedReal[collabName] = UNINITIALIZED;
@@ -311,9 +323,7 @@ const sociableInjector = injector.applyExtensions((injectableMetadata, dependenc
         const alreadyRetrieved = collaboratorRetrieved(collaboratorName);
         if (alreadyRetrieved !== UNINITIALIZED) {
           collaboratorsAndDependencies[collaboratorName] = alreadyRetrieved;
-        } else if (realKeys.indexOf(collaboratorName) >= 0) {
-          collaboratorsAndDependencies[collaboratorName] = injector.getInstance(collaboratorName);
-        } else if (partialMockKeys.indexOf(collaboratorName) >= 0) {
+        } else if (realKeys.indexOf(collaboratorName) >= 0 || partialMockKeys.indexOf(collaboratorName) >= 0) {
           if (has(testCollaborators.instancerFunctions, collaboratorName)) {
             collaboratorsAndDependencies[collaboratorName] = testCollaborators.instancerFunctions[collaboratorName];
           } else {
@@ -345,8 +355,15 @@ const sociableInjector = injector.applyExtensions((injectableMetadata, dependenc
 
   const JAVASCRIPT_FILE = /^(.*)\.js$/;
 
-  function getDefaultCustomizer(metadataCollection) {
-    if (!metadataCollection.fetchedDefaultCustomizer) {
+  /**
+   * Finds the default customizer for injectable described by metadataCollection, but only in the SOCIABLE
+   * environment.
+   *
+   * @param {InjectableMetadata.Collection} metadataCollection
+   * @returns {(undefined|Function)} returns mock customizer when caller is in the SOCIABLE runtime environment
+   */
+  Injector.prototype.getDefaultCustomizer = function(metadataCollection) {
+    if (!metadataCollection.fetchedDefaultCustomizer && jsuiceEnvironment === InjectorEnvironment.SOCIABLE) {
       metadataCollection.fetchedDefaultCustomizer = true;
 
       if (JAVASCRIPT_FILE.test(metadataCollection.moduleFilePath)) {
@@ -365,7 +382,7 @@ const sociableInjector = injector.applyExtensions((injectableMetadata, dependenc
     }
 
     return defaultCustomizers.get(metadataCollection);
-  }
+  };
 
   /**
    * Configures {@link injector#collaborators} to return a mock for injectableName.
@@ -384,14 +401,6 @@ const sociableInjector = injector.applyExtensions((injectableMetadata, dependenc
    */
   Injector.prototype.mock = function(injectableName, customizer) {
     const context = this.getInjectorContext();
-
-    if (!customizer) {
-      const injectable = injector.findInjectableByName(injectableName);
-      if (injectable) {
-        const metadataCollection = injectableMetadata.findOrAddMetadataFor(injectable.subject);
-        customizer = getDefaultCustomizer(metadataCollection);
-      }
-    }
 
     if (customizer) {
       return new MockCollaborator(injectableName, mockObj => {
@@ -433,14 +442,6 @@ const sociableInjector = injector.applyExtensions((injectableMetadata, dependenc
 
     const assistedInjectionParams = (args.length > 2) ? args.slice(2) : [];
 
-    if (!customizer) {
-      const injectable = injector.findInjectableByName(injectableName);
-      if (injectable) {
-        const metadataCollection = injectableMetadata.findOrAddMetadataFor(injectable.subject);
-        customizer = getDefaultCustomizer(metadataCollection);
-      }
-    }
-
     if (customizer) {
       const context = this.getInjectorContext();
       return new PartialMockCollaborator(injectableName, assistedInjectionParams, mockObj => {
@@ -460,6 +461,15 @@ const sociableInjector = injector.applyExtensions((injectableMetadata, dependenc
     const assistedInjectionParams = Array.from(arguments).slice(1);
 
     return new SystemUnderTest(injectableName, assistedInjectionParams);
+  };
+
+  /**
+   * @memberOf Injector.prototype
+   * @param injectableName
+   * @returns {SystemUnderTestInstancer}
+   */
+  Injector.prototype.systemUnderTestInstancer = function(injectableName) {
+    return new SystemUnderTestInstancer(injectableName);
   };
 
   /**

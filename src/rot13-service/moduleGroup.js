@@ -11,5 +11,6 @@ injector.moduleGroup('rot13Service',
   'timeKeeper', require('../rot13-utils/TimeKeeper'),
   'commandLine', require('./infrastructure/CommandLine'),
   'currentProcess', require('./infrastructure/CurrentProcess'),
-  'nodeServerFactory', require('./infrastructure/NodeServerFactory')
+  'nodeServerFactory', require('./infrastructure/NodeServerFactory'),
+  'httpServer', require('./HttpServer')
 );

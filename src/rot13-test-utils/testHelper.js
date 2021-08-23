@@ -20,8 +20,6 @@ const testHelper = {
       if (method === undefined && body.length !== 0) method = 'POST';
 
       const request = http.request({port, path: url, method, headers});
-      body.forEach((chunk) => request.write(chunk));
-      request.end();
 
       request.on('response', (response) => {
         let body = '';
@@ -42,6 +40,9 @@ const testHelper = {
           });
         });
       });
+
+      body.forEach((chunk) => request.write(chunk));
+      request.end();
     });
   },
 

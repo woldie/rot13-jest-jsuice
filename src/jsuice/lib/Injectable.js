@@ -190,8 +190,8 @@ class Injectable {
         { numberOfUserSuppliedArgs: 0};
 
       if (assistedInjectionParams.length !== metaObj.numberOfUserSuppliedArgs) {
-        throw new Error(`Invalid number of user-supplied parameters for assisted injection for ${self.name}, expected ${
-          metaObj.numberOfUserSuppliedArgs}, got ${assistedInjectionParams.length}`);
+        throw new Error(`Invalid number of user-supplied parameters for assisted injection for ${
+          self.name}, expected ${metaObj.numberOfUserSuppliedArgs}, got ${assistedInjectionParams.length}`);
       }
 
       if (!self.newInstanceFunction) {

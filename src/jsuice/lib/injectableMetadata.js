@@ -5,7 +5,7 @@ const Provider = require('./Provider');
 const InjectedParamType = require('./InjectedParamType');
 
 /**
- * @typedef {{moduleFilePath: String, scope: Scope, eager: Boolean, flags: Number, injectedParams: Array.<String|Instancer>, injectedParamTypes: Array.<InjectedParamType>, numberOfUserSuppliedArgs: Number=}} InjectableMetadata.Collection
+ * @typedef {{moduleFilePath: String, scope: Scope, eager: Boolean, flags: Number, injectedParams: Array.<String|Instancer>, injectedParamNames: Array.<String>, injectedParamTypes: Array.<InjectedParamType>, numberOfUserSuppliedArgs: Number=}} InjectableMetadata.Collection
  */
 
 /**

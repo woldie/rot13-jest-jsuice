@@ -18,6 +18,7 @@ module.exports = {
     `!${__dirname}/../serve.js`, // entry point module not covered, hard to test, so keep it simple
     `!${__dirname}/../**/*.test.js`,
     `!${__dirname}/../**/*.functional.js`,
+    `!${__dirname}/../**/*.unctional.js`,
     `!${__dirname}/**/*.js`,
     `!${__dirname}/../**/testScripts/*.js`,
   ],

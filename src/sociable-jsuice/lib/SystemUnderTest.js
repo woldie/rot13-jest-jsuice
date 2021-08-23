@@ -12,7 +12,7 @@ class SystemUnderTest {
     this.injectableName = injectableName;
 
     /**
-     * @name PartialMockCollaborator#assistedInjectionParams
+     * @name SystemUnderTest#assistedInjectionParams
      * @type {Array.<*>}
      */
     this.assistedInjectionParams = assistedInjectionParams;

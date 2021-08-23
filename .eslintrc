@@ -48,6 +48,7 @@
           "**/sociable-jsuice/**",
           "**/testUtilities/**",
           "**/*.functional.js",
+          "**/*.unctional.js",
           "**/*.mock.js",
           "**/setup.js",
           "**/globalSetup.js",
