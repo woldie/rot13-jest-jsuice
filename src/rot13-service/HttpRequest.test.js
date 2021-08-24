@@ -1,7 +1,7 @@
 const td = require('testdouble');
 const { IncomingMessage } = require('http');
-const testHelper = require('../../rot13-test-utils/testHelper');
-const injector = require('../../sociable-jsuice');
+const testHelper = require('../rot13-test-utils/testHelper');
+const injector = require('../sociable-jsuice');
 
 const PORT = 5001;
 
@@ -10,31 +10,38 @@ describe('HttpRequest', () => {
   let httpRequest;
 
   /**
-   * @type {NodeRequest}
+   * @type {module:http.IncomingMessage}
    */
   let nodeRequest;
-
-  /**
-   * @type {Instancer<HttpServer>}
-   */
-  let httpServerInstancer;
 
   describe('raw data', () => {
     beforeEach(() => {
       nodeRequest = td.instance(IncomingMessage);
 
-      [ httpRequest, httpServerInstancer ] = injector.collaborators(
+      [ httpRequest ] = injector.collaborators(
         injector.systemUnderTest('httpRequest', nodeRequest),
-        injector.instancer('httpServer')
       );
     });
 
     it("provides URL's pathname (which ignores query)", async () => {
-      expect.assertions(1);
-      await createRequestAsync({ url: '/my-url?query' }, (request) => {
-        expect(request.getUrlPathname()).toEqual('/my-url');
-      });
+      nodeRequest.url = '/my-url?query'
+
+      expect(httpRequest.getUrlPathname()).toEqual('/my-url');
     });
+
+    it('decodes encoded URLs', () => {
+      nodeRequest.url = '/a%3F%20%26%23b';
+
+      expect(httpRequest.getUrlPathname()).toEqual('/a? &#b');
+    });
+
+    it('provides method (and normalizes case)', () => {
+      nodeRequest.method = 'POst';
+
+      expect(httpRequest.getMethod()).toEqual('POST');
+    });
+
+
   });
 
   /**

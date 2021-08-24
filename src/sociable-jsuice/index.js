@@ -180,7 +180,7 @@ const sociableInjector = injector.applyExtensions((injectableMetadata, dependenc
     if (has(shadowedPartialMocked, injectable.name)) {
       const collabConfig = testCollaborators.partialMocks[injectable.name];
       let assistedParams = assistedInjectionParams;
-      if (collabConfig) {
+      if (!assistedParams && collabConfig && collabConfig.assistedInjectionParams) {
         assistedParams = collabConfig.assistedInjectionParams;
       }
 
@@ -240,8 +240,13 @@ const sociableInjector = injector.applyExtensions((injectableMetadata, dependenc
       // if real is the sut, we might also have assistedInjectionParams
       const assistedInjectionParams = sutConfig ? sutConfig.assistedInjectionParams : [];
 
+      let assistedParams = assistedInjectionParams;
+      if (!assistedParams && sutConfig && sutConfig.assistedInjectionParams) {
+        assistedParams = sutConfig.assistedInjectionParams;
+      }
+
       const instance = realGetInstanceForInjectable.call(injector, injectable, nameHistory, scopeHistory,
-        (sutConfig ? sutConfig.assistedInjectionParams : assistedInjectionParams));
+        assistedParams);
 
       shadowedReal[injectable.name] = instance;
       return instance;
@@ -320,6 +325,11 @@ const sociableInjector = injector.applyExtensions((injectableMetadata, dependenc
       const collaboratorsAndDependencies = {};
 
       forEach(allCollaborators, (collaboratorName) => {
+        // Do nothing if collaboratorName was not named as one of the collaboratorDescriptors by the caller
+        if (testCollaborators.collaboratorNames.indexOf(collaboratorName) < 0) {
+          return;
+        }
+
         const alreadyRetrieved = collaboratorRetrieved(collaboratorName);
         if (alreadyRetrieved !== UNINITIALIZED) {
           collaboratorsAndDependencies[collaboratorName] = alreadyRetrieved;

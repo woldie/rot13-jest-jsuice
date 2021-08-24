@@ -71,7 +71,7 @@ const testHelper = {
       });
 
       child.on('exit', () => {
-        if (failOnStderr && stderr !== '') {
+        if (failOnStderr && stderr !== '' && stderr.indexOf('debugger') < 0) {
           console.log(stderr);
           return reject(new Error('Runner failed'));
         }

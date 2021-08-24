@@ -6,11 +6,11 @@ injector.moduleGroup('rot13Service',
   'rot13', require('./logic/Rot13'),
   'rot13Router', require('./routing/Rot13Router'),
   'rot13Response', require('./routing/Rot13Response'),
-  'httpRequest', require('./infrastructure/HttpRequest'),
   'clockWrap', require('./infrastructure/ClockWrap'),
   'timeKeeper', require('../rot13-utils/TimeKeeper'),
   'commandLine', require('./infrastructure/CommandLine'),
   'currentProcess', require('./infrastructure/CurrentProcess'),
   'nodeServerFactory', require('./infrastructure/NodeServerFactory'),
-  'httpServer', require('./HttpServer')
+  'httpServer', require('./HttpServer'),
+  'httpRequest', require('./HttpRequest'),
 );

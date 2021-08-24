@@ -1,4 +1,5 @@
 const injector = require('../sociable-jsuice');
+const testHelper = require('../rot13-test-utils/testHelper');
 
 const TEST_PORT = 5001;
 
@@ -45,28 +46,55 @@ describe("HTTP Server (functional)", () => {
 
   });
 
-  /**
-   * @param {HttpServer} httpServer
-   * @param onRequestAsync
-   * @returns {Promise<void>}
-   */
-  async function startAsync(httpServer, {
-    onRequestAsync = () => {},
-  } = {}) {
-    await httpServer.start({ port: TEST_PORT, onRequestAsync });
-  }
+  describe('requests and responses', () => {
+    it("runs a function when a request is received and serves the result", async () => {
+      const expectedResponse = {
+        status: 777,
+        headers: {
+          header1: "value1",
+          header2: "value2",
+        },
+        body: "my body",
+      };
+      function onRequestAsync() { return expectedResponse; }
 
-  async function stopAsync(httpServer) {
-    await httpServer.stop();
-  }
+      const { response } = await getAsync(httpServer, { onRequestAsync });
+      expect(response).toEqual(expectedResponse);
+    });
 
-  async function startAndStopAsync(httpServer, options, fnAsync) {
-    await startAsync(httpServer, options);
-    try {
-      return await fnAsync();
-    }
-    finally {
-      await stopAsync(httpServer);
-    }
-  }
+  });
+
 });
+
+
+
+async function getAsync(httpServer, { onRequestAsync }) {
+  return startAndStopAsync(httpServer, { onRequestAsync }, async () => ({
+    response: await testHelper.requestAsync({ port: TEST_PORT })
+  }));
+}
+
+/**
+ * @param {HttpServer} httpServer
+ * @param onRequestAsync
+ * @returns {Promise<void>}
+ */
+async function startAsync(httpServer, {
+  onRequestAsync = () => {},
+} = {}) {
+  await httpServer.start({ port: TEST_PORT, onRequestAsync });
+}
+
+async function stopAsync(httpServer) {
+  await httpServer.stop();
+}
+
+async function startAndStopAsync(httpServer, options, fnAsync) {
+  await startAsync(httpServer, options);
+  try {
+    return await fnAsync();
+  }
+  finally {
+    await stopAsync(httpServer);
+  }
+}

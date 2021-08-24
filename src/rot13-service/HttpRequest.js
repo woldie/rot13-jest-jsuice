@@ -1,7 +1,7 @@
 /* eslint-disable prefer-rest-params */
 const isUndefined = require('lodash.isundefined');
-const injector = require('../../jsuice')
-const { signatureCheck }  = require('../../rot13-utils/typeCheck');
+const injector = require('../jsuice')
+const { signatureCheck }  = require('../rot13-utils/typeCheck');
 
 const { Scope, Flags } = injector;
 

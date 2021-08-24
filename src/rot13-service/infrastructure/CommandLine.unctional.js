@@ -23,7 +23,7 @@ describe("CommandLine.functional", () => {
       './testScripts/commandLineTestArgsRunner.js',
       {args}
     );
-    expect(stdout).toEqual('["my arg 1","my arg 2"]');
+    expect(stdout).toMatch('["my arg 1","my arg 2"]');
   });
 
   it('writes to stdout and stderr', async () => {
@@ -32,7 +32,7 @@ describe("CommandLine.functional", () => {
       './testScripts/commandLineTestOutputRunner.js',
       {failOnStderr: false}
     );
-    expect(stdout, 'stdout').toEqual('my stdout');
-    expect(stderr, 'stderr').toEqual('my stderr');
+    expect(stdout, 'stdout').toMatch(/my stdout/);
+    expect(stderr, 'stderr').toMatch(/my stderr/);
   });
 });

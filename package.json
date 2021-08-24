@@ -21,7 +21,7 @@
     "test:functional": "CONFIG_FILE=./src/conf/jest.functional.config.js yarn launch:functionalWithLogs",
     "launch:watchUnit": "CONFIG_FILE=./src/conf/jest.unit.watch.js WATCH_PARAM=\"--watch\" yarn --silent --mutex file:./build/unit.mutex launch:unit | cat",
     "launch:watchLint": "chokidar \"src/**/*.js\" --initial --silent --command \"FORMAT_PARAM=--no-color yarn --silent --mutex file:./build/lint.mutex lint\"",
-    "launch:watchFunctional": "chokidar \"src/**/*.js\" --initial --silent --command \"CONFIG_FILE=./src/conf/jest.functional.watch.js yarn --mutex file:./build/functional.mutex launch:functionalWithLogs | cat\"",
+    "launch:watchFunctional": "chokidar \"src/**/*.js\" --initial --silent --command \"WATCH_FUNCTIONAL=true CONFIG_FILE=./src/conf/jest.functional.watch.js yarn --mutex file:./build/functional.mutex launch:functionalWithLogs | cat\"",
     "watch:unit": "mkdir -p ./build && yarn launch:watchLint & yarn launch:watchUnit",
     "watch:functional": "mkdir -p ./build && yarn launch:watchFunctional"
   },

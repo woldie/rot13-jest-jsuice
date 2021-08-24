@@ -1,7 +1,7 @@
 /* eslint-disable prefer-rest-params */
 const { signatureCheck }  = require('../../rot13-utils/typeCheck');
 const injector = require('../../jsuice');
-const HttpRequest = require('../infrastructure/HttpRequest');
+const HttpRequest = require('../HttpRequest');
 
 const { Scope } = injector;
 

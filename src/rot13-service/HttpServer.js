@@ -11,7 +11,7 @@ const RESPONSE_TYPE = { status: Number, headers: Object, body: String };
 
 /** Wrapper for Node HTTP server */
 class HttpServer {
-  constructor(nodeServerFactory) {
+  constructor(nodeServerFactory, httpRequestInstancer) {
     /**
      * factory for Node Servers
      *
@@ -25,6 +25,12 @@ class HttpServer {
      * @type {module:http.Server}
      */
     this.nodeServer = null;
+
+    /**
+     * @name HttpServer#httpRequestInstancer
+     * @type {Instancer.<HttpRequest>}
+     */
+    this.httpRequestInstancer = httpRequestInstancer;
   }
 
   isStarted() {
@@ -118,4 +124,6 @@ function internalServerError() {
   };
 }
 
-module.exports = injector.annotateConstructor(HttpServer, Scope.PROTOTYPE, 'nodeServerFactory');
+module.exports = injector.annotateConstructor(HttpServer, Scope.PROTOTYPE,
+  'nodeServerFactory',
+  injector.instancer('httpRequest'));
