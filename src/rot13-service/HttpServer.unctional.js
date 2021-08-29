@@ -1,5 +1,8 @@
+/* eslint-disable global-require */
+const td = require('testdouble');
 const injector = require('../sociable-jsuice');
 const testHelper = require('../rot13-test-utils/testHelper');
+const HttpRequest = require('./HttpRequest');
 
 const TEST_PORT = 5001;
 
@@ -10,7 +13,8 @@ describe("HTTP Server (functional)", () => {
 
   beforeEach(() => {
     [ httpServerInstancer ] = injector.collaborators(
-      injector.systemUnderTestInstancer('httpServer')
+      injector.systemUnderTestInstancer('httpServer'),
+      injector.partialMock('logFactory', require('../rot13-utils/infrastructure/LogFactory.mock'))
     );
 
     httpServer = httpServerInstancer();
@@ -60,6 +64,37 @@ describe("HTTP Server (functional)", () => {
 
       const { response } = await getAsync(httpServer, { onRequestAsync });
       expect(response).toEqual(expectedResponse);
+    });
+
+    it('provides request object to request handler', async () => {
+      let actualRequest;
+      function onRequestAsync(request) {
+        actualRequest = request;
+      }
+
+      await getAsync(httpServer, { onRequestAsync });
+      expect(actualRequest).toBeInstanceOf(HttpRequest);
+    });
+
+    it('fails gracefully when request handler throws exception', async () => {
+      function onRequestAsync() { throw new Error('onRequestAsync error'); }
+
+      const { response } = await getAsync(httpServer, { onRequestAsync });
+
+      td.verify(httpServer.log.fatal(
+        td.matchers.anything(),
+        td.matchers.contains('request handler threw exception')
+      ), { times: 1 });
+      // assert.deepEqual(logOutput, [{
+      //   alert: Log.EMERGENCY,
+      //   message: "request handler threw exception",
+      //   error: "Error: onRequestAsync error",
+      // }]);
+      // assert.deepEqual(response, {
+      //   status: 500,
+      //   headers: { "content-type": "text/plain; charset=utf-8" },
+      //   body: "Internal Server Error",
+      // });
     });
 
   });

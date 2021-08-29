@@ -13,8 +13,8 @@
     "docs": "yarn docs:jsuice && yarn docs:sociable-jsuice",
     "launch:service": "node --unhandled-rejections=strict src/serve.js",
     "launch:unit": "JSUICE_ENV=sociable jest --passWithNoTests --silent $WATCH_PARAM --config $CONFIG_FILE",
-    "launch:functional": "JSUICE_ENV=functional jest --runInBand --passWithNoTests --config $CONFIG_FILE",
-    "launch:functionalWithLogs": "npm-run-all --silent --aggregate-output --continue-on-error --parallel launch:functional tail:functionalLogs",
+    "launch:functional": "JSUICE_ENV=functional WATCH_FUNCTIONAL=$WATCH_FUNCTIONAL jest --runInBand --passWithNoTests --config $CONFIG_FILE",
+    "launch:functionalWithLogs": "WATCH_FUNCTIONAL=$WATCH_FUNCTIONAL npm-run-all --silent --aggregate-output --continue-on-error --parallel launch:functional tail:functionalLogs",
     "lint": "mkdir -p ./reports/lint && suppress-exit-code eslint --output-file ./reports/lint/eslint.out --fix $FORMAT_PARAM \"src/**/*.js\" 2>&1 | tee ./reports/lint/eslint.out",
     "tail:functionalLogs": "suppress-exit-code less +F -h0 logs/functional.out",
     "test:unit": "CONFIG_FILE=./src/conf/jest.unit.config.js yarn launch:unit",
@@ -29,6 +29,7 @@
   "license": "UNLICENSED",
   "dependencies": {
     "@awaitjs/express": "^0.7.2",
+    "call-id": "^0.1.0",
     "class-info": "^1.0.2",
     "dotenv-flow": "^3.2.0",
     "examine-instance": "^1.1.2",
@@ -56,7 +57,7 @@
     "lodash.trim": "^4.5.1",
     "lodash.union": "^4.6.0",
     "lodash.uniq": "^4.5.0",
-    "type-check": "^0.4.0"
+    "pino": "^6.13.0"
   },
   "devDependencies": {
     "@jest/reporters": "^27.0.5",
@@ -64,11 +65,11 @@
     "@types/check-types": "^7.3.2",
     "@types/jest": "^26.0.23",
     "@types/jest-expect-message": "^1.0.3",
+    "@types/pino": "^6.3.11",
     "@types/sinonjs__fake-timers": "^6.0.3",
     "@typescript-eslint/eslint-plugin": "^4.26.1",
     "@typescript-eslint/parser": "^4.26.1",
     "@typescript-eslint/types": "^4.26.1",
-    "call-id": "^0.1.0",
     "chokidar-cli": "^2.1.0",
     "eslint": "^7.21.0",
     "eslint-config-airbnb": "^18.2.1",

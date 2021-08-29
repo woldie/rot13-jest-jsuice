@@ -1,22 +1,21 @@
+const { EventEmitter } = require('events');
 const td = require('testdouble');
 const { IncomingMessage } = require('http');
 const testHelper = require('../rot13-test-utils/testHelper');
 const injector = require('../sociable-jsuice');
 
-const PORT = 5001;
+const TEST_PORT = 5001;
 
 describe('HttpRequest', () => {
   /** @type {HttpRequest} */
   let httpRequest;
 
-  /**
-   * @type {module:http.IncomingMessage}
-   */
+  /** @type {EventEmitter} */
   let nodeRequest;
 
   describe('raw data', () => {
     beforeEach(() => {
-      nodeRequest = td.instance(IncomingMessage);
+      nodeRequest = new EventEmitter();
 
       [ httpRequest ] = injector.collaborators(
         injector.systemUnderTest('httpRequest', nodeRequest),
@@ -41,19 +40,33 @@ describe('HttpRequest', () => {
       expect(httpRequest.getMethod()).toEqual('POST');
     });
 
+    it('provides body', async () => {
+      const requestResponse = httpRequest.readBodyAsync();
 
+      // simulate the incoming data
+      nodeRequest.emit('data', 'chunk 1');
+      nodeRequest.emit('data', 'chunk 2');
+      nodeRequest.emit('end');
+
+      const submittedBody = await requestResponse;
+      expect(submittedBody).toEqual('chunk 1chunk 2');
+    });
+
+    it('fails fast if body is read twice', async () => {
+      const requestResponse = httpRequest.readBodyAsync();
+
+      // simulate the incoming data and wait for the response
+      nodeRequest.emit('data', 'dadada');
+      nodeRequest.emit('end');
+      await requestResponse;
+
+      // try to read the response again, should fail
+      expect.assertions(1);
+      try {
+        await httpRequest.readBodyAsync();
+      } catch (e) {
+        expect(e.message).toMatch(/Can't read request body because it's already been read/);
+      }
+    });
   });
-
-  /**
-   *
-   * @param {{ url: String=, status: Number=, headers: Object.<String,String>=, body: String= }} options
-   * @param {function(httpRequest: HttpRequest)} fnAsync
-   * @returns {Promise<void>}
-   */
-  async function createRequestAsync(options, fnAsync) {
-    const server = /** @type {HttpServer} */ httpServerInstancer();
-    await server.start({ port: PORT, onRequestAsync: fnAsync });
-    await testHelper.requestAsync({ port: PORT, ...options });
-    await server.stop();
-  }
 });

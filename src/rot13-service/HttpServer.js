@@ -11,7 +11,7 @@ const RESPONSE_TYPE = { status: Number, headers: Object, body: String };
 
 /** Wrapper for Node HTTP server */
 class HttpServer {
-  constructor(nodeServerFactory, httpRequestInstancer) {
+  constructor(nodeServerFactory, httpRequestInstancer, logFactory) {
     /**
      * factory for Node Servers
      *
@@ -31,6 +31,12 @@ class HttpServer {
      * @type {Instancer.<HttpRequest>}
      */
     this.httpRequestInstancer = httpRequestInstancer;
+
+    /**
+     * @name HttpServer#log
+     * @type {pino.Logger}
+     */
+    this.log = logFactory.createLogger();
   }
 
   isStarted() {
@@ -104,13 +110,13 @@ class HttpServer {
       const response = await onRequestAsync(httpRequest);
       const typeError = getTypeErrors(response, RESPONSE_TYPE);
       if (typeError !== null) {
-        // log.emergency({ message: "request handler returned invalid response", response });
+        this.log.fatal( { ...response }, 'request handler returned invalid response');
         return internalServerError();
       }
       return response;
     }
     catch (err) {
-      // log.emergency({ message: "request handler threw exception", error: err });
+      this.log.fatal( { err }, 'request handler threw exception');
       return internalServerError();
     }
   }
@@ -126,4 +132,6 @@ function internalServerError() {
 
 module.exports = injector.annotateConstructor(HttpServer, Scope.PROTOTYPE,
   'nodeServerFactory',
-  injector.instancer('httpRequest'));
+  injector.instancer('httpRequest'),
+  'logFactory'
+);

@@ -1,3 +1,5 @@
+const td = require('testdouble');
+
 const injector = require('../sociable-jsuice');
 const testHelper = require('../rot13-test-utils/testHelper');
 
@@ -36,10 +38,6 @@ describe("HTTP Server", () => {
         expect(e.message).toMatch(/Can't stop server because it isn't running/);
       }
     });
-  });
-
-  describe("requests and responses", () => {
-
   });
 
 });

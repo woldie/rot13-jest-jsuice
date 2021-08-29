@@ -13,7 +13,6 @@ const isArray = require('lodash.isarray');
 const isFunction = require('lodash.isfunction');
 const isUndefined = require('lodash.isundefined');
 const classInfo = require('class-info');
-const { getCallId } = require('call-id');
 
 const injector = require('../jsuice');
 const Scope = require('../jsuice/lib/Scope');
@@ -81,7 +80,7 @@ const sociableInjector = injector.applyExtensions((injectableMetadata, dependenc
     return injectable.scope === Scope.SINGLETON && container.length > 0;
   }
 
-  const spiesInstalled = new WeakMap();
+  let spiesInstalled = new WeakMap();
 
   function spyClass(clazz) {
     const typeInfo = classInfo(clazz);
@@ -585,6 +584,7 @@ const sociableInjector = injector.applyExtensions((injectableMetadata, dependenc
 
     shadowedReal = {};
     shadowedPartialMocked = {};
+    spiesInstalled = new WeakMap();
 
     // TODO: reset mocks and put them into a pool rather than clearing the map and allowing them to garbage collect here
 

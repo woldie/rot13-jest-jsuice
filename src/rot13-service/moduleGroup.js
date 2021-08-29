@@ -13,4 +13,5 @@ injector.moduleGroup('rot13Service',
   'nodeServerFactory', require('./infrastructure/NodeServerFactory'),
   'httpServer', require('./HttpServer'),
   'httpRequest', require('./HttpRequest'),
+  'logFactory', require('../rot13-utils/infrastructure/LogFactory')
 );
