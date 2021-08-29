@@ -21,10 +21,14 @@ const InjectedParamType = require('./InjectedParamType');
 
 /**
  * J'suice Dependency Injector
+ *
+ * @class Injector
+ * @hideconstructor
  */
 class Injector {
   /**
    * @param {DependencyGraph} dependencyGraph
+   * @private
    */
   constructor(dependencyGraph) {
     const self = this;
