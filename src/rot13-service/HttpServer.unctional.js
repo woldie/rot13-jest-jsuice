@@ -13,8 +13,7 @@ describe("HTTP Server (functional)", () => {
 
   beforeEach(() => {
     [ httpServerInstancer ] = injector.collaborators(
-      injector.systemUnderTestInstancer('httpServer'),
-      injector.partialMock('logFactory', require('../rot13-utils/infrastructure/LogFactory.mock'))
+      injector.systemUnderTestInstancer('httpServer')
     );
 
     httpServer = httpServerInstancer();

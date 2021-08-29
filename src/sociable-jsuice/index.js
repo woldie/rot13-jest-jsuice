@@ -37,6 +37,10 @@ const sociableInjector = injector.applyExtensions((injectableMetadata, dependenc
   let shadowedReal = {};
   let partialMockFactories = {};
   let testCaseContext = null;
+  let /** @type {WeakMap<InjectableMetadata.Collection,Boolean>} */ fetchedDefaultPartialMockCustomizer = new WeakMap();
+  let /** @type {WeakMap<InjectableMetadata.Collection,Function>} */ defaultPartialMockCustomizers = new WeakMap();
+  let /** @type {WeakMap<InjectableMetadata.Collection,Boolean>} */ fetchedDefaultMockCustomizer = new WeakMap();
+  let /** @type {WeakMap<InjectableMetadata.Collection,Function>} */ defaultMockCustomizers = new WeakMap();
 
   /**
    * @type {WeakMap.<InjectableMetadata.Collection,Function>}
@@ -162,7 +166,7 @@ const sociableInjector = injector.applyExtensions((injectableMetadata, dependenc
         td.instance(injectable.subject) :
         td.object();
 
-      const defaultCustomizer = this.getDefaultCustomizer(metaObj);
+      const defaultCustomizer = this.getDefaultMockCustomizer(metaObj);
       if (defaultCustomizer) {
         defaultCustomizer(injectable.name, instance, this.getInjectorContext());
       }
@@ -215,7 +219,7 @@ const sociableInjector = injector.applyExtensions((injectableMetadata, dependenc
             injectable.name} was the requested injectable.`);
       }
 
-      const defaultCustomizer = this.getDefaultCustomizer(metaObj);
+      const defaultCustomizer = this.getDefaultPartialMockCustomizer(metaObj);
       if (defaultCustomizer) {
         defaultCustomizer(injectable.name, instance, this.getInjectorContext());
       }
@@ -365,32 +369,64 @@ const sociableInjector = injector.applyExtensions((injectableMetadata, dependenc
   const JAVASCRIPT_FILE = /^(.*)\.js$/;
 
   /**
-   * Finds the default customizer for injectable described by metadataCollection, but only in the SOCIABLE
-   * environment.
+   * Finds the default customizer for mocks for injectable described by metadataCollection
    *
+   * @ignore
    * @param {InjectableMetadata.Collection} metadataCollection
-   * @returns {(undefined|Function)} returns mock customizer when caller is in the SOCIABLE runtime environment
+   * @returns {(null|Function)} returns mock customizer or null
    */
-  Injector.prototype.getDefaultCustomizer = function(metadataCollection) {
-    if (!metadataCollection.fetchedDefaultCustomizer && jsuiceEnvironment === InjectorEnvironment.SOCIABLE) {
-      metadataCollection.fetchedDefaultCustomizer = true;
+  Injector.prototype.getDefaultMockCustomizer = function(metadataCollection) {
+    if (!fetchedDefaultMockCustomizer.get(metadataCollection)) {
+      fetchedDefaultMockCustomizer.set(metadataCollection, true);
 
-      if (JAVASCRIPT_FILE.test(metadataCollection.moduleFilePath)) {
-        const mockFilename = metadataCollection.moduleFilePath.replace(JAVASCRIPT_FILE, '$1.mock.js');
+      const customizerModule = this.fetchDefaultCustomizer('mock', metadataCollection);
+      if (customizerModule) {
+        defaultMockCustomizers.set(metadataCollection, customizerModule);
+      }
+    }
+    return defaultMockCustomizers.get(metadataCollection);
+  };
 
-        try {
-          const mockCustomizer = /** @type {CustomizerFunction} */ module.require(mockFilename);
+  /**
+   * Finds the default customizer for partial mocks for injectable described by metadataCollection
+   *
+   * @ignore
+   * @param {InjectableMetadata.Collection} metadataCollection
+   * @returns {(null|Function)} returns partial mock customizer or null
+   */
+  Injector.prototype.getDefaultPartialMockCustomizer = function(metadataCollection) {
+    if (!fetchedDefaultPartialMockCustomizer.get(metadataCollection)) {
+      fetchedDefaultPartialMockCustomizer.set(metadataCollection, true);
 
-          if (mockCustomizer) {
-            defaultCustomizers.set(metadataCollection, mockCustomizer);
-          }
-        } catch (e) {
-          // no default mock defined for ctor
-        }
+      const customizerModule = this.fetchDefaultCustomizer('partialMock', metadataCollection);
+      if (customizerModule) {
+        defaultPartialMockCustomizers.set(metadataCollection, customizerModule);
+      }
+    }
+    return defaultPartialMockCustomizers.get(metadataCollection);
+  };
+
+  /**
+   * Finds the default customizer for injectable described by metadataCollection for mockType
+   *
+   * @private
+   * @ignore
+   * @param {String} mockType can be 'mock' or 'partialMock'
+   * @param {InjectableMetadata.Collection} metadataCollection
+   * @returns {(null|Function)} returns mock customizer
+   */
+  Injector.prototype.fetchDefaultCustomizer = function(mockType, metadataCollection) {
+    if (JAVASCRIPT_FILE.test(metadataCollection.moduleFilePath)) {
+      const mockFilename = metadataCollection.moduleFilePath.replace(JAVASCRIPT_FILE, `$1.${mockType}.js`);
+
+      try {
+        return /** @type {CustomizerFunction} */ module.require(mockFilename);
+      } catch (e) {
+        // no default mock defined for ctor
       }
     }
 
-    return defaultCustomizers.get(metadataCollection);
+    return null;
   };
 
   /**
@@ -585,6 +621,12 @@ const sociableInjector = injector.applyExtensions((injectableMetadata, dependenc
     shadowedReal = {};
     shadowedPartialMocked = {};
     spiesInstalled = new WeakMap();
+
+    // TODO: do these need to be cleared or can we cache them across test cases/test modules?
+    fetchedDefaultPartialMockCustomizer = new WeakMap();
+    defaultPartialMockCustomizers = new WeakMap();
+    fetchedDefaultMockCustomizer = new WeakMap();
+    defaultMockCustomizers = new WeakMap();
 
     // TODO: reset mocks and put them into a pool rather than clearing the map and allowing them to garbage collect here
 
