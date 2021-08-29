@@ -80,20 +80,36 @@ describe("HTTP Server (functional)", () => {
 
       const { response } = await getAsync(httpServer, { onRequestAsync });
 
-      td.verify(httpServer.log.fatal(
-        td.matchers.anything(),
-        td.matchers.contains('request handler threw exception')
-      ), { times: 1 });
-      // assert.deepEqual(logOutput, [{
-      //   alert: Log.EMERGENCY,
-      //   message: "request handler threw exception",
-      //   error: "Error: onRequestAsync error",
-      // }]);
-      // assert.deepEqual(response, {
-      //   status: 500,
-      //   headers: { "content-type": "text/plain; charset=utf-8" },
-      //   body: "Internal Server Error",
-      // });
+      injector.then(() => {
+        td.verify(httpServer.log.fatal(
+          td.matchers.anything(),
+          td.matchers.contains('request handler threw exception')
+        ), { times: 1 });
+      });
+
+      expect(response).toEqual({
+        status: 500,
+        headers: { 'content-type': 'text/plain; charset=utf-8' },
+        body: 'Internal Server Error'
+      });
+    });
+
+    it('fails gracefully when request handler returns invalid response', async () => {
+      function onRequestAsync() { return 'my invalid response'; }
+
+      const { response } = await getAsync(httpServer, { onRequestAsync });
+      injector.then(() => {
+        td.verify(httpServer.log.fatal(
+          td.matchers.argThat(arg => arg.response === 'my invalid response'),
+          td.matchers.contains('request handler returned invalid response')
+        ), { times: 1 });
+      });
+
+      expect(response).toEqual({
+        status: 500,
+        headers: { 'content-type': 'text/plain; charset=utf-8' },
+        body: 'Internal Server Error',
+      });
     });
 
   });

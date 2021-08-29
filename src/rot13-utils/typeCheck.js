@@ -2,8 +2,8 @@
 const type = require('./type');
 
 module.exports = {
-  signatureCheck: (args, signature, names) => {
-    checkSignature(false, args, signature, names);
+  signatureCheck: (args, signature, names, allowExtra = false) => {
+    checkSignature(allowExtra, args, signature, names);
   },
   getTypeErrors: (variable, expectedType, allowExtraKeys, name) =>
     type.check(variable, expectedType, { name: normalize(name), allowExtraKeys })
@@ -17,8 +17,8 @@ function isTrue(variable, message) {
 }
 
 function checkSignature(allowExtra, args, signature = [], names = []) {
-  isTrue(Array.isArray(signature), "ensure.signature(): signature parameter must be an array");
-  isTrue(Array.isArray(names), "ensure.signature(): names parameter must be an array");
+  isTrue(Array.isArray(signature), "signatureCheck(): signature parameter must be an array");
+  isTrue(Array.isArray(names), "signatureCheck(): names parameter must be an array");
 
   const expectedArgCount = signature.length;
   const actualArgCount = args.length;

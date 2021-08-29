@@ -52,6 +52,9 @@ class HttpRequest {
     return mediaType.trim().toLowerCase() === expectedMediaType.trim().toLowerCase();
   }
 
+  /**
+   * @returns {Promise<String>}
+   */
   async readBodyAsync() {
     return new Promise((resolve, reject) => {
       signatureCheck(arguments, []);

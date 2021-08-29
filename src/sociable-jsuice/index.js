@@ -3,7 +3,6 @@
 
 const td = require('testdouble');
 const forEach = require('lodash.foreach');
-const reduce = require('lodash.reduce');
 const union = require('lodash.union');
 const map = require('lodash.map');
 const filter = require('lodash.filter');
@@ -280,7 +279,7 @@ const sociableInjector = injector.applyExtensions((injectableMetadata, dependenc
    * @public
    */
   Injector.prototype.collaborators = function(collaboratorDescriptors) {
-    inRehearsals = true;
+    inRehearsals += 1;
 
     try {
       collaboratorSetupCalled = true;
@@ -300,7 +299,6 @@ const sociableInjector = injector.applyExtensions((injectableMetadata, dependenc
       const realKeys = testCollaborators.reals;
       const mockKeys = keys(testCollaborators.mocks);
       const partialMockKeys = keys(testCollaborators.partialMocks);
-      const instancers = keys(testCollaborators.instancerFunctions);
 
       forEach(realKeys, collabName => {
         shadowedReal[collabName] = UNINITIALIZED;
@@ -350,7 +348,7 @@ const sociableInjector = injector.applyExtensions((injectableMetadata, dependenc
       // return the requested collaborators in the order they were requested
       return map(testCollaborators.collaboratorNames, name => collaboratorsAndDependencies[name]);
     } finally {
-      inRehearsals = false;
+      inRehearsals -= 1;
     }
   };
 
@@ -361,7 +359,7 @@ const sociableInjector = injector.applyExtensions((injectableMetadata, dependenc
    */
   Injector.prototype.getInjectorContext = function() {
     if (testCaseContext === null) {
-      throw new Error("An injector context is available only when a test is running");
+      throw new Error('An injector context is available only when a test is running');
     }
     return testCaseContext;
   };
@@ -600,6 +598,21 @@ const sociableInjector = injector.applyExtensions((injectableMetadata, dependenc
     self.isInstancerFunction.set(theInstancer, injectableName);
 
     return theInstancer;
+  };
+
+  /**
+   * Executes 'then' clause where you can safely make assertions about J'Suice-managed mocks and partialMocks.
+   *
+   * @memberOf Injector.prototype
+   * @param {function()} thenClause function that executes one-or-more <code>td.verify</code> assertions
+   */
+  Injector.prototype.then = function(thenClause) {
+    inRehearsals += 1;
+    try {
+      thenClause();
+    } finally {
+      inRehearsals -= 1;
+    }
   };
 
   /**

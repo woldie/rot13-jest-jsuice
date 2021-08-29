@@ -110,7 +110,7 @@ class HttpServer {
       const response = await onRequestAsync(httpRequest);
       const typeError = getTypeErrors(response, RESPONSE_TYPE);
       if (typeError !== null) {
-        this.log.fatal( { ...response }, 'request handler returned invalid response');
+        this.log.fatal( { response }, 'request handler returned invalid response');
         return internalServerError();
       }
       return response;
